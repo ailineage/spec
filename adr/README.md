@@ -12,6 +12,7 @@ Every normative change to the specification is recorded as an ADR ([GOVERNANCE.m
 | [0004](0004-canonicalization-jcs.md) | JCS canonicalization for 0.x | Accepted |
 | [0005](0005-signature-suites.md) | Signature suites: ES256 and EdDSA | Accepted |
 | [0006](0006-registry-and-escrow-model.md) | Optional registry and escrow model | Accepted |
+| [0007](0007-digest-format-sha256-extensible.md) | Digest format: SHA-256 with an algorithm prefix | Accepted |
 
 ## Template
 

@@ -4,6 +4,10 @@ All notable changes to the specification are recorded here. The format follows [
 
 ## [Unreleased]
 
+### Added
+
+- ADR-0007: digest format `<alg>:<hex>` with a digest algorithm registry (only `sha256` in 0.1); REQ-0230 to REQ-0233; digest schemas restructured as one `anyOf` branch per algorithm. No fixture changes.
+
 ## [0.1.0-draft] — 2026-10-19
 
 ### Added

@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ailineage.org/schema/defs/hash.json",
-  "title": "AILineage content hash",
-  "description": "A SHA-256 digest in the form 'sha256:<64 lowercase hex>'. Multihash is reserved for a future version (see OPEN_QUESTIONS.md).",
+  "title": "AILineage digest",
+  "description": "REQ-0230: '<alg>:<lowercase hex>'. Each anyOf branch is one entry of the digest algorithm registry (SPEC.md section 5.5, ADR-0007). 0.1 registers only sha256. New algorithms are added as new branches by ADR.",
   "type": "string",
-  "pattern": "^sha256:[0-9a-f]{64}$"
+  "anyOf": [
+    { "title": "sha256", "pattern": "^sha256:[0-9a-f]{64}$" }
+  ]
 }

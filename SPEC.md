@@ -103,6 +103,7 @@ P = Producer, V = Verifier, R = Registry. "●" means the requirement binds that
 | 0010–0127 | Data model fields (§4) | ● | ● | |
 | 0200–0203 | Artifact identifier | ● | ● | |
 | 0210–0222 | Per-format hashing (PNG, JPEG, sidecar, header) | ● | ● | |
+| 0230–0233 | Digest format and algorithm registry | ● | ● | ● |
 | 0300–0301, 0304 | Prompt commitment | ● | | |
 | 0302 | Public prompt re-hash | | ● | |
 | 0303, 0307 | Escrow and disclosure | ● | | ● |
@@ -331,7 +332,7 @@ signature       { alg, kid, ts, sig, chain? }
 
 ### 5.1 Artifact identifier
 
-- **[REQ-0200]** `artifact.id` MUST be `urn:sha256:` followed by the 64 lowercase hex digits of SHA-256 over the **hashable bytes** of the artifact. The hashable bytes are the artifact's bytes with every embedded AILineage manifest removed, as defined per container below.
+- **[REQ-0200]** `artifact.id` MUST be `urn:sha256:` followed by the 64 lowercase hex digits of SHA-256 over the **hashable bytes** of the artifact (digest format: §5.5). The hashable bytes are the artifact's bytes with every embedded AILineage manifest removed, as defined per container below.
 - **[REQ-0201]** Producers MUST compute the identifier over the final encoded bytes, after any compression or encoding and before embedding the manifest. A Verifier MUST recompute the identifier from the artifact it is given, never trust the manifest's value.
 - **[REQ-0202]** The removal procedure MUST be a pure byte operation: it MUST NOT decode and re-encode pixel, audio or text data.
 - **[REQ-0203]** Any re-encoding of the artifact (JPEG re-save, image resizing, transcoding, newline conversion) produces different bytes and therefore a different artifact. A service that re-encodes SHOULD emit a new manifest with `generation.kind = derived` and the original as `input` parent. This is why `artifact.perceptual` and the Registry exist (§13, THREAT_MODEL T1).
@@ -361,6 +362,17 @@ The dedicated packet sits beside the file's main XMP packet. Most XMP readers re
 - **[REQ-0222]** The identifier in the header MUST equal `artifact.id`. A Verifier that finds a header with a different identifier MUST report `HASH_MISMATCH`.
 
 Example: [`examples/sidecar/`](examples/sidecar/).
+
+### 5.5 Digest format and algorithm agility
+
+AILineage names the hash algorithm in every digest, so new algorithms can be added without changing the format ([ADR-0007](adr/0007-digest-format-sha256-extensible.md)).
+
+- **[REQ-0230]** Every digest MUST have the form `<alg>:<hex>`, and every artifact identifier the form `urn:<alg>:<hex>`. `<alg>` is a lowercase algorithm name from the digest algorithm registry (§15). `<hex>` is the full, untruncated digest in lowercase hexadecimal, with the length the registry fixes for that algorithm.
+- **[REQ-0231]** The registry for 0.1 contains exactly one algorithm, `sha256` (SHA-256, 64 hex digits). Producers MUST use `sha256`.
+- **[REQ-0232]** A Verifier MUST report `SCHEMA_INVALID` for a digest whose algorithm it does not implement or whose length does not match the registry. It MUST NOT skip or ignore such a digest.
+- **[REQ-0233]** A new algorithm is added only by an ADR, as a minor version change that appends an entry to the registry and a branch to `schema/defs/hash.json` and `schema/defs/urn-artifact.json`. Digests within one manifest MAY use different registered algorithms; each `parents[].id` MUST be identical to the parent manifest's `artifact.id` string.
+
+The RFC 3161 `messageImprint` (§8.4) is not a digest in this sense and stays SHA-256.
 
 ## 6. Prompt commitment
 
@@ -615,6 +627,7 @@ This version reserves the names below. Registration is future work and tracked i
 
 | Name | Value | Status |
 | --- | --- | --- |
+| Digest algorithm registry | `sha256` (64 hex digits) | defined by this specification (§5.5); extended only by ADR |
 | Media type | `application/vnd.ailineage+json` | TODO: IANA vendor-tree registration; future IETF draft |
 | XMP namespace | `http://ailineage.org/ns/0.1/`, prefix `ailineage` | reserved; IPTC/XMP registration planned |
 | PNG iTXt keyword | `ailineage` | reserved; PNG keyword registry submission planned |

@@ -2,7 +2,7 @@
 
 Decisions the 0.1 draft deliberately leaves open. Each answer should become an ADR (or an amendment to an existing one). Ordered roughly by impact.
 
-1. **Multihash vs SHA-256 only.** 0.1 fixes `sha256:<hex>` and `urn:sha256:<hex>`. Adopting multihash (or an algorithm-prefixed form such as `sha384:`/`blake3:`) now makes algorithm agility cheap; staying SHA-256-only keeps every implementation trivial. Which, and when?
+1. ~~**Multihash vs SHA-256 only.**~~ **Resolved** by [ADR-0007](adr/0007-digest-format-sha256-extensible.md): SHA-256 with the algorithm prefix, extensible through a digest algorithm registry; no multihash.
 
 2. **Salted prompt commitment.** An unsalted SHA-256 of a short or predictable prompt can be recovered by guessing ([REQ-0804]). Options: add `prompt.salt_ref` (salt escrowed with the plaintext), use HMAC with a per-principal key, or accept the risk and document it. This changes `prompt.hash` semantics, so it should be decided before 1.0.
 
