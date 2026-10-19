@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ailineage.org/schema/defs/urn-artifact.json",
+  "title": "AILineage artifact identifier",
+  "description": "'urn:sha256:<64 lowercase hex>' computed over the artifact bytes with any embedded AILineage manifest removed (SPEC.md section 5).",
+  "type": "string",
+  "pattern": "^urn:sha256:[0-9a-f]{64}$"
+}

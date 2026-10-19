@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ailineage.org/schema/defs/hash.json",
+  "title": "AILineage content hash",
+  "description": "A SHA-256 digest in the form 'sha256:<64 lowercase hex>'. Multihash is reserved for a future version (see OPEN_QUESTIONS.md).",
+  "type": "string",
+  "pattern": "^sha256:[0-9a-f]{64}$"
+}
