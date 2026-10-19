@@ -1,0 +1,33 @@
+# AILineage Threat Model 0.1
+
+This document is informative. It lists the threats the specification is designed against, what the specification does about each, and what remains. Requirement IDs refer to [SPEC.md](SPEC.md).
+
+## Assets and actors
+
+**Assets:** the binding between an artifact and its manifest; the accountability of the principal; prompt confidentiality; the integrity of lineage chains; the availability of verification.
+
+**Actors:** a dishonest *Producer* (lies in its own manifests); a *forger* (no access to the Producer's key); a *platform* that strips or re-encodes media; a *registry operator* (honest-but-curious or compromised); a *requester* seeking disclosure; an *observer* correlating public manifests.
+
+## Threats
+
+| # | Threat | Actor | Impact | Mitigation in spec | Residual risk |
+| --- | --- | --- | --- | --- | --- |
+| T1 | **Metadata stripping.** Platform or user removes the embedded manifest (the most common case). | Platform, user | Artifact appears `UNPROVENANCED`; lineage lost. | Registry lookup by recomputed `artifact.id` (§9.2 step 1); `artifact.perceptual` for re-encoded copies; perceptual matches reported only as `W_PERCEPTUAL_CANDIDATE` ([REQ-0610]). | Without a Registry, nothing can be recovered. Perceptual hashes have false positives and negatives and do not prove identity. |
+| T2 | **Backdated manifest.** Producer claims an earlier creation time to pre-date a competitor or an event. | Dishonest Producer | False priority or alibi. | `signature.ts` is mandatory ([REQ-0124], [REQ-0506]); imprint is over the signature ([REQ-0505]); `created_at` ≤ `genTime` + 300 s ([REQ-0508]); `W_TS_DELAYED` for large gaps. | A Producer controlling a TSA trusted by the Verifier can backdate; TSA trust is local policy (`W_TSA_UNTRUSTED`). Post-dating within the TSA gap is possible but harmless. |
+| T3 | **Model spoofing.** `generation.model.id` names a different, more reputable or less restricted model. | Dishonest Producer | Misattribution to a provider; evading model-specific rules. | `version_hash` over weights or API build id ([REQ-0032]); signature makes the Producer accountable for the claim; future provider co-signature profile. | Model fields are self-reported. Without a provider attestation, the claim is only as good as the signer. |
+| T4 | **Prompt escrow breach.** Attacker obtains escrow storage. | Compromised registry | Exposure of confidential prompts. | Ciphertext only at custodian ([REQ-0303], [REQ-0802]); custodian alone cannot decrypt; audit log of every disclosure ([REQ-0307]). | Key-management design is left to the Registry in 0.1. Metadata (who escrowed what, when) is still visible to the operator. |
+| T5 | **Hash of a different prompt.** Producer commits to a harmless prompt while using a harmful one. | Dishonest Producer | Misleading evidence. | None cryptographically: a commitment is not a proof of content. The spec says so (§1.2, §6.3). Disclosure reveals the committed plaintext, which can then be compared with the artifact and logs. | Remains. The commitment binds the Producer to *a* prompt at a time; the honesty of that prompt is a matter of evidence and liability, not cryptography. |
+| T6 | **Replay / manifest transplant.** A valid manifest is copied onto other bytes to borrow its provenance. | Forger | False attribution. | Verifier recomputes `artifact.id` from the bytes ([REQ-0201]) → `HASH_MISMATCH`; header id check ([REQ-0222]); `size_bytes` check ([REQ-0023]). | None for exact-byte binding. A perceptually similar copy is reported as a candidate only. |
+| T7 | **Key compromise.** Signing key is stolen and used to sign forgeries. | Forger with stolen key | Forged manifests attributed to the victim. | `kid` resolution via DID or chain ([REQ-0504]); revocation lists ([REQ-0008]); `KEY_REVOKED` for signatures after revocation or any signature with key-compromise reason ([REQ-0509]). | Window between compromise and revocation. Revoking for compromise also invalidates the victim's legitimate past manifests unless they are re-attested. |
+| T8 | **Parent chain poisoning.** Manifest names a false parent to claim descent from a reputable source, or a malicious Registry serves cycles or deep chains. | Dishonest Producer, malicious registry | False lineage; resource exhaustion. | Each parent is checked against its own signed manifest ([REQ-0404]); cycles → `PARENT_UNRESOLVABLE` ([REQ-0400]); depth limit default 16 ([REQ-0405]). | A Producer can name any existing artifact as `reference` or `input`; the parent's manifest proves the parent, not the relationship. |
+| T9 | **Privacy leak via `actor.principal`.** Public manifests link artifacts to persons. | Observer | De-anonymization, profiling. | Pseudonymous DIDs recommended for end-users ([REQ-0800]); `pseudonymous` flag; `on_behalf_of` lets the deployer stand in; optional linkable fields can be omitted ([REQ-0805]). | Content hashes, timing and style still allow correlation. Low-entropy prompt hashes can be guessed ([REQ-0804]). |
+| T10 | **Denial via flag abuse.** `flags` used as a censorship vector: a Verifier or platform suppresses content because a flag is present, or an attacker adds flags to get content removed. | Platform, attacker | Over-blocking, chilling effect. | Flags are Producer declarations; Verifiers MUST NOT change state or block, hide or down-rank because of them ([REQ-0093], [REQ-0605]). Flags are inside the signed payload, so third parties cannot add them. | Platforms outside the spec may still act on flags. |
+| T11 | **Algorithm or canonicalization confusion.** Different implementations hash different bytes for the same manifest or prompt. | Any | Valid manifests fail; or forged ones pass in one implementation. | Exactly two signature algorithms ([REQ-0502]); raw `r‖s` encoding; JCS; machine-checked test vectors; duplicate member names rejected ([REQ-0004]). | Implementation bugs; mitigated by shared fixtures and cross-implementation tests. |
+| T12 | **Registry equivocation.** A Registry serves different manifests to different Verifiers or withholds revocations. | Malicious registry | Inconsistent verification. | Registry stores byte-exact ([REQ-0006]); revocation lists are signed and append-only ([REQ-0008]); manifests are verifiable without the Registry. | No transparency log in 0.1; a Sigstore-style log is a candidate for a future profile. |
+
+## Out of scope
+
+- Detecting whether unsigned content was produced by AI.
+- Proving that the content of an artifact is true or lawful.
+- Protecting a Producer from itself: a Producer that signs false statements is accountable for them, not prevented from making them.
+- Side channels in Producer or Verifier implementations.
