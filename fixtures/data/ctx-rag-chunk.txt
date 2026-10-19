@@ -1,0 +1,2 @@
+Rounding policy: amounts are rounded half-even to two decimals only at
+the final total, never per line item.

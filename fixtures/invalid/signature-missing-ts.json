@@ -1,0 +1,35 @@
+{
+  "spec": "ailineage/0.1",
+  "artifact": {
+    "id": "urn:sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+    "media_type": "text/plain",
+    "created_at": "2026-10-19T07:55:00Z"
+  },
+  "generation": {
+    "kind": "created",
+    "model": {
+      "id": "anthropic/claude-haiku-5-5",
+      "provider": "anthropic.com"
+    }
+  },
+  "prompt": {
+    "hash": "sha256:c8e2c1437abb87b67330d0dddbd1de9a179ca6be207497f14873894c26e7d742",
+    "canonicalization": "utf8-nfc-trim-v1",
+    "storage": "none",
+    "disclosure_policy": "none",
+    "contains_pii": false
+  },
+  "parents": [],
+  "actor": {
+    "principal": "did:web:ol1n.com",
+    "role": "operator",
+    "pseudonymous": false
+  },
+  "flags": [],
+  "signature": {
+    "alg": "EdDSA",
+    "kid": "did:key:z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n#z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n",
+    "sig": "kLha4UyPvfDVY-Gp-MrEkdBDOTSMZHF49_XMby07QRm9vZa7_bijmP3LYbACY9rFYIGv90KCp_5d9Y0UF2dBDw"
+  },
+  "_note": "REQ-0124: signature.ts missing"
+}

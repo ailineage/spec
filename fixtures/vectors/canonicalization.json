@@ -1,0 +1,91 @@
+{
+  "prompt": [
+    {
+      "name": "ascii",
+      "input": "Draw a red circle on a white background.",
+      "input_utf8_hex": "4472617720612072656420636972636c65206f6e2061207768697465206261636b67726f756e642e",
+      "canonical": "Draw a red circle on a white background.",
+      "hash": "sha256:82611d94764edb70f41067b56384c1e5f1180d9d3609e78943112ea0ed876614"
+    },
+    {
+      "name": "czech-diacritics-nfd",
+      "input": "Příliš žluťoučký kůň úpěl ďábelské ódy",
+      "input_utf8_hex": "5072cc8c69cc816c6973cc8c207acc8c6c7574cc8c6f7563cc8c6b79cc81206b75cc8a6ecc8c2075cc817065cc8c6c2064cc8c61cc8162656c736b65cc81206fcc816479",
+      "canonical": "Příliš žluťoučký kůň úpěl ďábelské ódy",
+      "hash": "sha256:6f33ad2f13da6ec45a14dd2854c3bf486310af3832123272feb4d78461b8c96c"
+    },
+    {
+      "name": "emoji",
+      "input": "Make the icon friendlier 🦊✨ and add a 👨‍💻",
+      "input_utf8_hex": "4d616b65207468652069636f6e20667269656e646c69657220f09fa68ae29ca820616e6420616464206120f09f91a8e2808df09f92bb",
+      "canonical": "Make the icon friendlier 🦊✨ and add a 👨‍💻",
+      "hash": "sha256:411b6d0a15353fd397a49f41179dbf7cec011c46fdef4fd56576d63bec0fc982"
+    },
+    {
+      "name": "crlf",
+      "input": "Line one\r\nLine two\rLine three\r\n",
+      "input_utf8_hex": "4c696e65206f6e650d0a4c696e652074776f0d4c696e652074687265650d0a",
+      "canonical": "Line one\nLine two\nLine three",
+      "hash": "sha256:46c949c0b79bc3c1eef1d2970222427b7a0e8d70233d4cc2429535f0f41a0e9a"
+    },
+    {
+      "name": "trailing-spaces",
+      "input": "  Indented first line   \nsecond line\t \n\n\n  ",
+      "input_utf8_hex": "2020496e64656e746564206669727374206c696e652020200a7365636f6e64206c696e6509200a0a0a2020",
+      "canonical": "Indented first line\nsecond line",
+      "hash": "sha256:117a85e46ec77376d0335c11e64842995413395fc358a9d07a4f327577392daa"
+    }
+  ],
+  "jcs": {
+    "input": {
+      "spec": "ailineage/0.1",
+      "z": [
+        3,
+        1.5,
+        1e+21,
+        1e-07,
+        -0.0,
+        100
+      ],
+      "a": {
+        "€": "euro",
+        "\r": "cr",
+        "😀": "emoji",
+        "ﬁ": "fi-ligature (sorts after U+1F600 in UTF-16 order)",
+        "1": "one"
+      },
+      "text": "Příliš\n\"quoted\"\t\u0001",
+      "flag": true,
+      "none": null
+    },
+    "canonical": "{\"a\":{\"\\r\":\"cr\",\"1\":\"one\",\"€\":\"euro\",\"😀\":\"emoji\",\"ﬁ\":\"fi-ligature (sorts after U+1F600 in UTF-16 order)\"},\"flag\":true,\"none\":null,\"spec\":\"ailineage/0.1\",\"text\":\"Příliš\\n\\\"quoted\\\"\\t\\u0001\",\"z\":[3,1.5,1e+21,1e-7,0,100]}",
+    "hash": "sha256:a4c7335e3aaec1ef4da825efc1a92a67fd880adca270b9a9ffa91a7141d16a1e"
+  },
+  "multimodal": {
+    "input": {
+      "text": "  Describe this image\r\nin one sentence.  ",
+      "attachments": [
+        "urn:sha256:1f9cd740c721f1adfd070b4cc2ea3fc84e8406eacbad8e362dca26fc0dd273fa"
+      ]
+    },
+    "canonical": "{\"attachments\":[\"urn:sha256:1f9cd740c721f1adfd070b4cc2ea3fc84e8406eacbad8e362dca26fc0dd273fa\"],\"text\":\"Describe this image\\nin one sentence.\"}",
+    "hash": "sha256:66d8f81622273184235c23fc9913fd8d553fe80480aaa5560191f4129fc6a8e5"
+  },
+  "params": {
+    "input": {
+      "params": {
+        "steps": 4,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "client_id": "c0ffee-run-7",
+        "queued_at": "2026-10-19T06:59:58Z"
+      },
+      "volatile": [
+        "client_id",
+        "queued_at"
+      ]
+    },
+    "canonical": "{\"cfg\":1,\"sampler_name\":\"euler\",\"steps\":4}",
+    "hash": "sha256:3c18fc58cd350eccc0d092bc00e9d4c9d58ae7918cd7c1e78ad8975e18464698"
+  }
+}
