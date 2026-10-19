@@ -13,8 +13,8 @@
     }
   },
   "prompt": {
-    "hash": "sha256:c8e2c1437abb87b67330d0dddbd1de9a179ca6be207497f14873894c26e7d742",
-    "canonicalization": "utf8-nfc-trim-v1",
+    "hash": "sha256:88057a8763d37fbd4318d10d4d8cfc79e1759dcdf8308723b5b8a3ac6b4fcdf4",
+    "canonicalization": "utf8-nfc-trim-salted-v1",
     "storage": "none",
     "disclosure_policy": "none",
     "contains_pii": false
@@ -29,7 +29,7 @@
   "signature": {
     "alg": "EdDSA",
     "kid": "did:key:z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n#z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n",
-    "sig": "kLha4UyPvfDVY-Gp-MrEkdBDOTSMZHF49_XMby07QRm9vZa7_bijmP3LYbACY9rFYIGv90KCp_5d9Y0UF2dBDw"
+    "sig": "BE1tKJTurKZ_jS7LCtObccK8nHkk7QVglqBLHVTDSgoZ5aZCN24OtUIlxMhdqIvOQQ__WUHC-kZOHz6Fk_U-AA"
   },
   "_note": "REQ-0124: signature.ts missing"
 }

@@ -107,6 +107,8 @@ P = Producer, V = Verifier, R = Registry. "●" means the requirement binds that
 | 0300–0301, 0304 | Prompt commitment | ● | | |
 | 0302 | Public prompt re-hash | | ● | |
 | 0303, 0307 | Escrow and disclosure | ● | | ● |
+| 0308–0309, 0311 | Salt generation and handling | ● | | ● |
+| 0310 | Opening verification | | ● | ● |
 | 0306 | `contains_pii` is a declaration | | ● | ● |
 | 0400–0406 | Lineage chain | ● | ● | ● |
 | 0500–0509 | Signature and timestamp | ● | ● | |
@@ -202,26 +204,26 @@ signature       { alg, kid, ts, sig, chain? }
 - **[REQ-0035]** `runtime` MAY be omitted entirely. All its members are optional.
 - **[REQ-0036]** `runtime.tool` SHOULD be `<name> <version>`.
 - **[REQ-0037]** `runtime.workflow_hash` MUST be `sha256:` over `JCS(workflow)` if the workflow is JSON, otherwise over its raw bytes. Before hashing, the Producer SHOULD replace prompt-bearing values in the workflow with the literal string `<prompt>`, so that the workflow hash does not commit to the prompt a second time without canonicalization.
-- **[REQ-0038]** `runtime.seed` MUST be a non-negative integer. `runtime.params_hash` MUST be `sha256:` over the JCS serialization [RFC 8785] of the generation parameter object with the top-level members listed in `volatile` removed (CANONICALIZATION.md §5).
+- **[REQ-0038]** `runtime.seed` MUST be a non-negative integer. `runtime.params_hash` MUST be `sha256:` over the JCS serialization [RFC 8785] of the generation parameter object with the top-level members listed in `volatile` removed (CANONICALIZATION.md §6).
 - **[REQ-0039]** `runtime.volatile` lists top-level parameter names that vary between otherwise identical runs (request ids, queue timestamps). If `volatile` is present, `params_hash` MUST be present.
 
 ### 4.4 `prompt`
 
 | Field | Type | Req. | Semantics | Example | REQ |
 | --- | --- | --- | --- | --- | --- |
-| `prompt.hash` | string | MUST | `sha256:<hex>` over the canonicalized prompt. | | [REQ-0040] |
-| `prompt.canonicalization` | enum | MUST | `utf8-nfc-trim-v1` \| `multimodal-v1`. | `"utf8-nfc-trim-v1"` | [REQ-0041] |
+| `prompt.hash` | string | MUST | `sha256:<hex>` over the salted (or, for public prompts, unsalted) canonical prompt. | | [REQ-0040] |
+| `prompt.canonicalization` | enum | MUST | `utf8-nfc-trim-salted-v1` \| `multimodal-salted-v1` \| `utf8-nfc-trim-v1` \| `multimodal-v1`. | `"utf8-nfc-trim-salted-v1"` | [REQ-0041], [REQ-0052] |
 | `prompt.storage` | enum | MUST | `none` \| `escrow` \| `public`. | `"escrow"` | [REQ-0042] |
 | `prompt.escrow_ref` | string | MUST-IF `storage=escrow` | `https` URL or `urn:ailineage:escrow:<host>:<id>`. | `"urn:ailineage:escrow:registry.ailineage.org:01J9…"` | [REQ-0043], [REQ-0044] |
 | `prompt.text` | string | MUST-IF `storage=public`; MUST NOT otherwise | Prompt plaintext. | | [REQ-0045] |
 | `prompt.disclosure_policy` | enum | MUST | `on-legal-request` \| `owner` \| `public` \| `none`. | `"on-legal-request"` | [REQ-0047] |
 | `prompt.contains_pii` | boolean | MUST | Producer declaration whether the prompt contains personal data. | `false` | [REQ-0048] |
-| `prompt.system_prompt_hash` | string | MAY | `sha256:<hex>` over the canonicalized system prompt. | | [REQ-0049] |
+| `prompt.system_prompt_hash` | string | MAY | `sha256:<hex>` commitment to the system prompt, with its own salt. | | [REQ-0049] |
 | `prompt.context_refs` | array of string | MAY | `urn:sha256:` ids of material placed in the model context. | | [REQ-0050] |
 | `prompt.turn_index` | integer | MAY | Zero-based position of the prompt in a conversation. | `2` | [REQ-0051] |
 
-- **[REQ-0040]** `prompt.hash` MUST be `sha256:` followed by the 64 lowercase hex digits of SHA-256 over the canonical prompt bytes defined by `prompt.canonicalization` (§6).
-- **[REQ-0041]** `prompt.canonicalization` MUST be `utf8-nfc-trim-v1` for text-only prompts and `multimodal-v1` for prompts with non-text attachments. Both are defined in [CANONICALIZATION.md](CANONICALIZATION.md).
+- **[REQ-0040]** `prompt.hash` MUST be `sha256:` followed by the 64 lowercase hex digits of SHA-256 over the bytes defined by `prompt.canonicalization` (§6): the salt followed by the canonical prompt for salted methods, the canonical prompt alone for unsalted methods.
+- **[REQ-0041]** `prompt.canonicalization` names the text canonicalization and whether the commitment is salted. `utf8-nfc-trim-salted-v1` and `utf8-nfc-trim-v1` are for text-only prompts; `multimodal-salted-v1` and `multimodal-v1` for prompts with non-text attachments. All four are defined in [CANONICALIZATION.md](CANONICALIZATION.md).
 - **[REQ-0042]** `prompt.storage` declares where the plaintext lives:
   - `none` — not stored by any party under this specification. The Producer or principal may still hold a copy outside the system.
   - `escrow` — stored as ciphertext by a custodian identified by `escrow_ref`.
@@ -236,9 +238,10 @@ signature       { alg, kid, ts, sig, chain? }
   - `public` — anyone. MUST be used when `storage` is `public`.
   - `none` — the plaintext will not be disclosed by any party under this specification.
 - **[REQ-0048]** `contains_pii` is a Producer declaration. It is not a guarantee. See [REQ-0306].
-- **[REQ-0049]** `system_prompt_hash`, if present, MUST be computed with the same canonicalization method as `prompt.hash`, applied to the system prompt text.
+- **[REQ-0049]** `system_prompt_hash`, if present, MUST be computed with the same canonicalization method as `prompt.hash`, applied to the system prompt text. If the method is salted, the system prompt MUST have its own salt, different from the prompt's salt ([REQ-0308]).
 - **[REQ-0050]** Each `context_refs` entry MUST be `urn:sha256:` over the bytes of one item placed in the model context: a file's raw bytes, a retrieved chunk as UTF-8 bytes, or a previous conversation turn in its `utf8-nfc-trim-v1` canonical form. Entries MUST be unique. Order SHOULD follow the order in which items entered the context.
 - **[REQ-0051]** `turn_index` MUST be a non-negative integer counting user turns from 0.
+- **[REQ-0052]** If `storage` is `escrow` or `none`, `canonicalization` MUST be a salted method (`utf8-nfc-trim-salted-v1` or `multimodal-salted-v1`). If `storage` is `public`, it MUST be an unsalted method (`utf8-nfc-trim-v1` or `multimodal-v1`), because the plaintext is already public and Verifiers must be able to re-hash it ([REQ-0302]). See [ADR-0008](adr/0008-mandatory-salted-prompt-commitment.md).
 
 ### 4.5 `parents`
 
@@ -389,21 +392,30 @@ The `storage` value changes what a manifest reveals and who can later check it.
 
 | `storage` | In manifest | Plaintext held by | Who can check the commitment |
 | --- | --- | --- | --- |
-| `none` | hash only | nobody under this spec | whoever later obtains the plaintext from the principal |
-| `escrow` | hash + `escrow_ref` | custodian, as ciphertext | the requester after disclosure; anyone the plaintext is shown to |
-| `public` | hash + `text` | everyone | every Verifier ([REQ-0302]) |
+| `none` | salted hash only | principal keeps plaintext and salt, if anyone | whoever later obtains plaintext and salt from the principal |
+| `escrow` | salted hash + `escrow_ref` | custodian, plaintext and salt as ciphertext | the requester after disclosure; anyone the opening is shown to |
+| `public` | unsalted hash + `text` | everyone | every Verifier ([REQ-0302]) |
 
 - **[REQ-0302]** If `storage` is `public`, a Verifier MUST recompute the hash from `prompt.text` using the declared canonicalization and MUST report `HASH_MISMATCH` if it differs from `prompt.hash`.
-- **[REQ-0303]** An escrow custodian MUST store only ciphertext. The record MUST bind to `prompt.hash` and `artifact.id`, so that a disclosed plaintext can be checked against the commitment. The decryption key MUST NOT be held by the custodian alone in a form that allows decryption without the disclosure process of [REQ-0307].
+- **[REQ-0303]** An escrow custodian MUST store only ciphertext. The ciphertext MUST contain the opening ([REQ-0310]), that is the plaintext and its salt. The record MUST bind to `prompt.hash` and `artifact.id`, so that a disclosed opening can be checked against the commitment. The decryption key MUST NOT be held by the custodian alone in a form that allows decryption without the disclosure process of [REQ-0307].
 - **[REQ-0304]** A Producer MUST NOT place prompt plaintext, or any reversible encoding of it, anywhere in the manifest other than `prompt.text` under `storage = public`. This includes `extensions`, `runtime` and `context_refs`.
 - **[REQ-0305]** If `disclosure_policy` is `public`, `storage` SHOULD be `public` or `escrow`. If `storage` is `public`, `disclosure_policy` MUST be `public`.
 - **[REQ-0306]** `contains_pii` is a Producer declaration, not a guarantee. A Verifier or Registry MUST NOT treat `contains_pii = false` as evidence that a prompt contains no personal data.
 
 ### 6.3 Disclosure
 
-- **[REQ-0307]** A custodian MUST release an escrowed prompt only as permitted by `disclosure_policy`. Every disclosure request and its outcome MUST be recorded in an append-only audit log with at least: the escrow id, `prompt.hash`, the requester identity, the stated legal basis, the decision, the deciding party and the time. The disclosed plaintext is verified by any party by recomputing `prompt.hash`.
+- **[REQ-0307]** A custodian MUST release an escrowed prompt only as permitted by `disclosure_policy`. Every disclosure request and its outcome MUST be recorded in an append-only audit log with at least: the escrow id, `prompt.hash`, the requester identity, the stated legal basis, the decision, the deciding party and the time. A disclosure releases the opening, plaintext and salt together. Any party verifies it by recomputing `prompt.hash` ([REQ-0310]).
 
 A commitment does not prove which prompt was used before disclosure. It proves that the Producer bound itself, at the time shown by `signature.ts`, to exactly one canonical prompt.
+
+### 6.4 Salt
+
+An unsalted hash of a short or predictable prompt can be found by guessing: hash candidate prompts until one matches. Identical prompts would also produce identical hashes and link manifests to each other. Every commitment that hides a prompt is therefore salted ([ADR-0008](adr/0008-mandatory-salted-prompt-commitment.md)).
+
+- **[REQ-0308]** For each salted commitment the Producer MUST generate a fresh salt of exactly 32 bytes from a cryptographically secure random number generator. A salt MUST NOT be reused for another commitment, including the `system_prompt_hash` of the same manifest.
+- **[REQ-0309]** The salt MUST NOT appear in the manifest, in `extensions`, in logs that are published, or anywhere else outside the places where the plaintext itself is kept: the escrow ciphertext for `storage = escrow`, or the principal's own records for `storage = none`.
+- **[REQ-0310]** The *opening* of a salted commitment is the pair (plaintext, salt). An opening is valid if SHA-256 over `salt || canonical bytes` equals the committed hash (CANONICALIZATION.md §5). When the salt is exchanged as text, it MUST be base64url without padding.
+- **[REQ-0311]** A lost salt makes the commitment permanently unopenable. A principal MAY discard the salt deliberately only when `disclosure_policy` is `none`. A custodian MUST NOT discard a salt while it retains the escrow record.
 
 ## 7. Lineage chain
 
@@ -603,7 +615,7 @@ The Registry is optional ([ADR-0006](adr/0006-registry-and-escrow-model.md)). Th
 - **[REQ-0801]** Prompt plaintext MUST NOT appear in a manifest unless `storage = public` ([REQ-0304]).
 - **[REQ-0802]** A Registry MUST hold escrowed prompts only as ciphertext ([REQ-0303]) and MUST NOT require plaintext for any operation.
 - **[REQ-0803]** Every disclosure MUST be audited ([REQ-0307]). A Registry SHOULD make audit entries available to the principal.
-- **[REQ-0804]** An unsalted hash of a short or predictable prompt can be found by guessing. A Producer SHOULD treat `prompt.hash` of low-entropy prompts as potentially revealing and MAY choose `storage = none` with `disclosure_policy = none` only when the prompt is not sensitive. A salted commitment is under consideration (OPEN_QUESTIONS.md).
+- **[REQ-0804]** Prompt commitments are salted ([REQ-0052], §6.4), which prevents guessing and linking by hash. `context_refs` cannot be salted, because they are artifact identifiers: anyone holding a candidate document can test whether it was in the context. A Producer SHOULD omit `context_refs` entries whose disclosure would harm the principal.
 - **[REQ-0805]** `seed`, `params_hash`, `context_refs` and `turn_index` can link manifests to each other and to a user. A Producer SHOULD omit them when linkage would harm the principal and they are not needed for accountability.
 - **[REQ-0806]** A Registry operator MUST document its retention policy for manifests and escrow ciphertext, including how it handles data-subject erasure requests against the evidentiary purpose of escrow.
 

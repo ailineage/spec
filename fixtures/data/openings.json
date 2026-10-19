@@ -1,0 +1,113 @@
+{
+  "_note": "TEST ONLY openings of salted prompt commitments",
+  "01-image-created-comfyui.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "A watercolor fox sleeping under a birch tree, soft morning light, 64x64 icon",
+      "salt": "XsP08EHvaXpaxEM5fWer0Ym0YfTyNrZV6Ug5dHW9Z6o"
+    }
+  ],
+  "02-text-created-chat-escrow.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "How do I keep a sourdough starter alive? Short answer please.",
+      "salt": "_DiKrxTDGKdk0KfvrdqVUPYnPAgCwMu33t8UKGdNPyQ"
+    },
+    {
+      "field": "prompt.system_prompt_hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "You are a concise baking assistant. Answer in three sentences or fewer.",
+      "salt": "SEfa1jo6EPpGvwDk1IVMDWojbnmsW9Bjy2d5glRDuyM"
+    }
+  ],
+  "03-code-created-claude-code-sidecar.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Make hello.go greet the name passed as the first CLI argument, default to world.",
+      "salt": "q6nhgiacYl2Y8BXYAsYo_oIqin0L4MUU09qoWNjtdiA"
+    }
+  ],
+  "04-audio-created-acestep.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "lo-fi piano loop, 70 bpm, warm vinyl crackle, A minor",
+      "salt": "UF-5lhHG-BqnEHTmc272jT7vkOTSmNsP6aNbROOtOsk"
+    }
+  ],
+  "05-video-derived-from-image.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Slow 1-second push-in on the fox icon, keep the palette.",
+      "salt": "BHYKX9TRirqEfOa5m6HUDz9_90s_RbJg9f_8nSd8afU"
+    }
+  ],
+  "06-image-edited-inpaint.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Replace the centre with a glowing yellow lantern.",
+      "salt": "uboqfv_Si2g3e0Gp3D2K0Nqg1HE7bedw-vv2gkW4Odo"
+    }
+  ],
+  "07-chain-v1.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Start release notes with a single 'Initial draft.' bullet.",
+      "salt": "oItYCeVxurd2b67uSPg93ZqIPVy_KB8DK2vv8hYHt8I"
+    }
+  ],
+  "07-chain-v2.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Add a bullet about PNG embedding.",
+      "salt": "TRsQE-3FQYlLPiOIGiyxOs4vRFqGmDPS0UK2OSKvlfM"
+    }
+  ],
+  "07-chain-v3.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Add a bullet about the JPEG XMP stripping fix.",
+      "salt": "c2Jt0KaSvDhu-42NvJtuIRGUjObPSRJIorpyvKBSeVA"
+    }
+  ],
+  "08-agent-run-context-refs.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Investigate TICKET-4127 using the rounding policy and write an incident summary.",
+      "salt": "MTkC36aA35do0EFA0ThTmgOP5wLgeY-2_jL4tCDzDFA"
+    }
+  ],
+  "09-assisted-human-authored.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Suggest a tighter final sentence for my paragraph about provenance.",
+      "salt": "uEcThx5aHfR88nrF6OuI1sThBTAWERZUHmVMWBQxMMs"
+    }
+  ],
+  "11-minimal.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Say hello.",
+      "salt": "l4EvuuZV7-kXAOWZ4on_n5gHYApM2sokrlwbsRQ0xys"
+    }
+  ],
+  "12-pseudonymous-actor.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "Summarise the 2027 municipal budget proposal in two sentences.",
+      "salt": "ykXSEowS1n4YrFUBe1bcpEhca5B_NPs3xWCLiUiv6jU"
+    }
+  ]
+}

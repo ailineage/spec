@@ -21,11 +21,11 @@ Minimal manifest ([fixture 11](fixtures/valid/11-minimal.json)):
   "spec": "ailineage/0.1",
   "artifact": {"id": "urn:sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03", "media_type": "text/plain", "created_at": "2026-10-19T07:55:00Z"},
   "generation": {"kind": "created", "model": {"id": "anthropic/claude-haiku-5-5", "provider": "anthropic.com"}},
-  "prompt": {"hash": "sha256:c8e2c1437abb87b67330d0dddbd1de9a179ca6be207497f14873894c26e7d742", "canonicalization": "utf8-nfc-trim-v1", "storage": "none", "disclosure_policy": "none", "contains_pii": false},
+  "prompt": {"hash": "sha256:88057a8763d37fbd4318d10d4d8cfc79e1759dcdf8308723b5b8a3ac6b4fcdf4", "canonicalization": "utf8-nfc-trim-salted-v1", "storage": "none", "disclosure_policy": "none", "contains_pii": false},
   "parents": [],
   "actor": {"principal": "did:web:ol1n.com", "role": "operator", "pseudonymous": false},
   "flags": [],
-  "signature": {"alg": "EdDSA", "kid": "did:key:z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n#z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n", "ts": "MIISFgYJKoZI…RXay4=", "sig": "kLha4UyPvfDV…F2dBDw"}
+  "signature": {"alg": "EdDSA", "kid": "did:key:z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n#z6MkunqAcgKusG7fp3hXi2TXxdTZm7eomDR6ASgvWhLHeu6n", "ts": "MIISGAYJKoZI…Rk2g==", "sig": "BE1tKJTurKZ_…k_U-AA"}
 }
 ```
 

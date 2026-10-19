@@ -49,6 +49,8 @@ INVALID = FIX / "invalid"
 VECTORS = FIX / "vectors"
 EXAMPLES = ROOT / "examples"
 
+SALTS_FILE = DATA / "salts.json"
+OPENINGS_FILE = DATA / "openings.json"
 TSA_URL = os.environ.get("AILINEAGE_TSA_URL", "https://freetsa.org/tsr")
 TSA_CA = KEYS / "freetsa-cacert.pem"
 TSA_CERT = KEYS / "freetsa-tsa.crt"
@@ -168,6 +170,18 @@ def prompt_bytes_v1(text: str) -> bytes:
 
 def prompt_bytes_multimodal(text: str, attachments: list[str]) -> bytes:
     return jcs_bytes({"attachments": list(attachments), "text": canon_text(text)})
+
+
+SALTED = {"utf8-nfc-trim-v1": "utf8-nfc-trim-salted-v1",
+          "multimodal-v1": "multimodal-salted-v1"}
+UNSALTED = {v: k for k, v in SALTED.items()}
+
+
+def salted_commit(canonical: bytes, salt: bytes) -> str:
+    """CANONICALIZATION.md section 5: SHA-256(salt || canonical bytes)."""
+    if len(salt) != 32:
+        raise ValueError("salt must be exactly 32 bytes")
+    return h(salt + canonical)
 
 
 def params_hash(params: dict, volatile: list[str]) -> str:
@@ -549,8 +563,37 @@ def build_data(write: bool):
         DATA.mkdir(parents=True, exist_ok=True)
         for name, b in D.items():
             (DATA / name).write_bytes(b)
+    load_salts(write)
     # clip.mp4 is produced once by ffmpeg (see fixtures/README.md) and committed.
     D["clip.mp4"] = (DATA / "clip.mp4").read_bytes()
+
+
+SALTS: dict[str, bytes] = {}
+
+
+def load_salts(write: bool):
+    """TEST ONLY salts, one per committed prompt. Created once with a CSPRNG
+    and kept in data/salts.json so that regeneration is idempotent."""
+    stored = json.loads(SALTS_FILE.read_text()) if SALTS_FILE.exists() else {}
+    needed = [k for k in PROMPTS if k not in PUBLIC_PROMPTS]
+    changed = False
+    for k in needed:
+        if k not in stored:
+            if not write:
+                raise SystemExit("missing salt for prompt %r; run make fixtures-regen" % k)
+            stored[k] = b64u(os.urandom(32))
+            changed = True
+    if write and changed:
+        SALTS_FILE.write_text(json.dumps(
+            {"_note": "TEST ONLY salts for fixture prompts", **dict(sorted(
+                (k, v) for k, v in stored.items() if not k.startswith("_")))}, indent=2) + "\n")
+    for k, v in stored.items():
+        if not k.startswith("_"):
+            SALTS[k] = b64u_dec(v)
+
+
+def commit(pid: str) -> str:
+    return salted_commit(prompt_bytes_v1(PROMPTS[pid]), SALTS[pid])
 
 
 def stand_in(label: str) -> str:
@@ -592,6 +635,9 @@ PROMPTS = {
 }
 
 
+PUBLIC_PROMPTS = {"10"}
+
+
 def base(name, media_type, created_at, kind, model, prompt, parents=None, actor=None,
          flags=None, runtime=None, extra=None, alg="EdDSA"):
     m = {
@@ -617,7 +663,7 @@ def base(name, media_type, created_at, kind, model, prompt, parents=None, actor=
 
 
 def p_escrow(pid, esc_id, policy="on-legal-request", pii=False, **kw):
-    d = {"hash": h(prompt_bytes_v1(PROMPTS[pid])), "canonicalization": "utf8-nfc-trim-v1",
+    d = {"hash": commit(pid), "canonicalization": "utf8-nfc-trim-salted-v1",
          "storage": "escrow", "escrow_ref": ESC + esc_id, "disclosure_policy": policy,
          "contains_pii": pii}
     d.update(kw)
@@ -625,7 +671,7 @@ def p_escrow(pid, esc_id, policy="on-legal-request", pii=False, **kw):
 
 
 def p_none(pid, policy="none", **kw):
-    d = {"hash": h(prompt_bytes_v1(PROMPTS[pid])), "canonicalization": "utf8-nfc-trim-v1",
+    d = {"hash": commit(pid), "canonicalization": "utf8-nfc-trim-salted-v1",
          "storage": "none", "disclosure_policy": policy, "contains_pii": False}
     d.update(kw)
     return d
@@ -659,7 +705,7 @@ def define_fixtures():
         {"id": "anthropic/claude-sonnet-5-5", "provider": "anthropic.com",
          "version_hash": "build:claude-sonnet-5-5"},
         p_escrow("02", "01J9ZK4A1B2C3D4E5F6G7H8J9K", policy="owner", pii=False,
-                 system_prompt_hash=h(prompt_bytes_v1(PROMPTS["02-system"])), turn_index=2),
+                 system_prompt_hash=commit("02-system"), turn_index=2),
         runtime={"tool": "AiStack gateway 0.3"},
         actor={"principal": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH",
                "role": "end-user", "pseudonymous": True, "on_behalf_of": DEPLOYER},
@@ -796,6 +842,15 @@ def invalid_fixtures(valid: dict) -> dict:
     out["public-wrong-disclosure-policy.json"] = mut(
         src10, "REQ-0305: storage=public requires disclosure_policy=public",
         lambda m: m["prompt"].__setitem__("disclosure_policy", "owner"))
+    out["escrow-unsalted.json"] = mut(
+        src01, "REQ-0052: storage=escrow requires a salted canonicalization",
+        lambda m: m["prompt"].__setitem__("canonicalization", "utf8-nfc-trim-v1"))
+    out["none-unsalted.json"] = mut(
+        src11, "REQ-0052: storage=none requires a salted canonicalization",
+        lambda m: m["prompt"].__setitem__("canonicalization", "utf8-nfc-trim-v1"))
+    out["public-salted.json"] = mut(
+        src10, "REQ-0052: storage=public requires an unsalted canonicalization",
+        lambda m: m["prompt"].__setitem__("canonicalization", "utf8-nfc-trim-salted-v1"))
     out["none-with-text.json"] = mut(src11, "REQ-0046: storage=none with text",
                                      lambda m: m["prompt"].__setitem__("text", PROMPTS["11"]))
     out["none-with-escrow-ref.json"] = mut(
@@ -827,6 +882,49 @@ def invalid_fixtures(valid: dict) -> dict:
 
 
 SEMANTIC_INVALID = {"parent-self-reference.json"}
+
+
+def build_openings(final: dict) -> dict:
+    """Openings (plaintext + salt) of every salted commitment in the valid
+    fixtures. TEST ONLY: in production an opening lives only in escrow or
+    with the principal and is released by disclosure (SPEC.md 6.3)."""
+    out = {"_note": "TEST ONLY openings of salted prompt commitments"}
+    for name, m in sorted(final.items()):
+        entries = []
+        for field in ("hash", "system_prompt_hash"):
+            target = m["prompt"].get(field)
+            if not target or m["prompt"]["canonicalization"] not in UNSALTED:
+                continue
+            for pid, text in PROMPTS.items():
+                if pid in SALTS and commit(pid) == target:
+                    entries.append({"field": "prompt." + field,
+                                    "canonicalization": m["prompt"]["canonicalization"],
+                                    "text": text, "salt": b64u(SALTS[pid])})
+                    break
+            else:
+                raise SystemExit("%s: no opening found for prompt.%s" % (name, field))
+        if entries:
+            out[name] = entries
+    return out
+
+
+def opening_errors(final: dict, openings: dict) -> list[str]:
+    errs = []
+    for name, entries in openings.items():
+        if name.startswith("_"):
+            continue
+        for e in entries:
+            if e["canonicalization"] != "utf8-nfc-trim-salted-v1":
+                errs.append("%s: unsupported opening canonicalization" % name)
+                continue
+            got = salted_commit(prompt_bytes_v1(e["text"]), b64u_dec(e["salt"]))
+            want = final[name]["prompt"][e["field"].split(".", 1)[1]]
+            if got != want:
+                errs.append("%s: opening does not match %s" % (name, e["field"]))
+    for name, m in final.items():
+        if m["prompt"]["canonicalization"] in UNSALTED and name not in openings:
+            errs.append("%s: salted commitment without opening" % name)
+    return errs
 
 # ---------------------------------------------------------------------------
 # Signing + timestamping a fixture
@@ -907,6 +1005,9 @@ MULTIMODAL_VECTOR = {
     "attachments": ["urn:sha256:" + sha256_hex(b"<placeholder image bytes>")],
 }
 
+SALT_VECTOR = bytes(range(32))  # fixed salt for test vectors only (00 01 .. 1f)
+SALTED_VECTORS = ["ascii", "czech-diacritics-nfd"]
+
 PARAMS_VECTOR = {
     "params": {"steps": 4, "cfg": 1.0, "sampler_name": "euler", "client_id": "c0ffee-run-7",
                "queued_at": "2026-10-19T06:59:58Z"},
@@ -915,16 +1016,26 @@ PARAMS_VECTOR = {
 
 
 def compute_vectors() -> dict:
-    v = {"prompt": [], "jcs": {}, "multimodal": {}, "params": {}}
+    v = {"prompt": [], "salted": [], "jcs": {}, "multimodal": {}, "multimodal_salted": {},
+         "params": {}}
     for name, text in PROMPT_VECTORS:
         c = prompt_bytes_v1(text)
         v["prompt"].append({"name": name, "input": text,
                             "input_utf8_hex": text.encode("utf-8").hex(),
                             "canonical": c.decode("utf-8"), "hash": h(c)})
+    for name, text in PROMPT_VECTORS:
+        if name in SALTED_VECTORS:
+            c = prompt_bytes_v1(text)
+            v["salted"].append({"name": name, "input": text, "salt_hex": SALT_VECTOR.hex(),
+                                "salt_b64url": b64u(SALT_VECTOR),
+                                "hashed_bytes_hex": (SALT_VECTOR + c).hex(),
+                                "hash": salted_commit(c, SALT_VECTOR)})
     c = jcs_bytes(JCS_VECTOR)
     v["jcs"] = {"input": JCS_VECTOR, "canonical": c.decode("utf-8"), "hash": h(c)}
     c = prompt_bytes_multimodal(MULTIMODAL_VECTOR["text"], MULTIMODAL_VECTOR["attachments"])
     v["multimodal"] = {"input": MULTIMODAL_VECTOR, "canonical": c.decode("utf-8"), "hash": h(c)}
+    v["multimodal_salted"] = {"input": MULTIMODAL_VECTOR, "salt_hex": SALT_VECTOR.hex(),
+                              "hash": salted_commit(c, SALT_VECTOR)}
     p = PARAMS_VECTOR
     kept = {k: x for k, x in p["params"].items() if k not in p["volatile"]}
     v["params"] = {"input": p, "canonical": jcs(kept),
@@ -946,6 +1057,13 @@ def vectors_markdown(v: dict) -> str:
                 "Canonical form (Python string literal):", "",
                 "```python", repr(p["canonical"]), "```", "",
                 "SHA-256:", "", md_code(p["hash"]), ""]
+    out += ["### Salted prompt vectors (`utf8-nfc-trim-salted-v1`)", "",
+            "Same inputs as the vectors of the same name above. Salt (32 bytes, test only):", "",
+            md_code(SALT_VECTOR.hex()), ""]
+    for p in v["salted"]:
+        out += ["#### `%s` (salted)" % p["name"], "",
+                "Hashed bytes `salt || canonical` (hex):", "", md_code(p["hashed_bytes_hex"]), "",
+                "SHA-256:", "", md_code(p["hash"]), ""]
     j = v["jcs"]
     out += ["### JCS vector", "", "Input (Python literal; `-0.0`, `1e21` and `1e-7` exercise "
             "number serialization):", "", "```python", repr(j["input"]), "```", "",
@@ -954,7 +1072,10 @@ def vectors_markdown(v: dict) -> str:
     mm = v["multimodal"]
     out += ["### Multimodal vector (`multimodal-v1`)", "", "Input:", "",
             "```python", repr(mm["input"]), "```", "", "Canonical form:", "",
-            md_code(mm["canonical"]), "", "SHA-256:", "", md_code(mm["hash"]), ""]
+            md_code(mm["canonical"]), "", "SHA-256:", "", md_code(mm["hash"]), "",
+            "### Multimodal salted vector (`multimodal-salted-v1`)", "",
+            "Same input and canonical form as above, same test salt. SHA-256:", "",
+            md_code(v["multimodal_salted"]["hash"]), ""]
     pv = v["params"]
     out += ["### Params vector (`params_hash`)", "", "Input:", "",
             "```python", repr(pv["input"]), "```", "", "Canonical form:", "",
@@ -1087,6 +1208,7 @@ def cmd_regen(_args) -> int:
         (VALID / name).write_text(dump(final[name]))
     for name, m in invalid_fixtures(final).items():
         (INVALID / name).write_text(dump(m))
+    OPENINGS_FILE.write_text(dump(build_openings(final)))
     errs = build_examples(final, write=True)
     v = compute_vectors()
     VECTORS.mkdir(parents=True, exist_ok=True)
@@ -1144,6 +1266,10 @@ def cmd_check(_args) -> int:
                     pm["artifact"]["media_type"] != m["artifact"]["media_type"]:
                 fails.append("%s: REQ-0402 previous_version media_type differs" % name)
     fails += build_examples(final, write=False)
+    openings = json.loads(OPENINGS_FILE.read_text())
+    if openings != build_openings(final):
+        fails.append("data/openings.json is stale; run make fixtures-regen")
+    fails += opening_errors(final, openings)
     for s in sorted(SEMANTIC_INVALID):
         if not semantic_errors(json.loads((INVALID / s).read_text())):
             fails.append("invalid/%s: expected a semantic violation" % s)
@@ -1177,8 +1303,9 @@ def cmd_test_vectors(_args) -> int:
         print("FAIL CANONICALIZATION.md test vectors are stale; run make fixtures-regen")
         ok = False
     doc = (ROOT / "CANONICALIZATION.md").read_text()
-    hashes = [p["hash"] for p in v["prompt"]] + [v["jcs"]["hash"], v["multimodal"]["hash"],
-                                                 v["params"]["hash"]]
+    hashes = [p["hash"] for p in v["prompt"]] + [p["hash"] for p in v["salted"]] + [
+        v["jcs"]["hash"], v["multimodal"]["hash"], v["multimodal_salted"]["hash"],
+        v["params"]["hash"]]
     for x in hashes:
         if x not in doc:
             print("FAIL hash %s not found in CANONICALIZATION.md" % x)
@@ -1186,6 +1313,7 @@ def cmd_test_vectors(_args) -> int:
     # independent sanity checks of the algorithms themselves
     assert canon_text("a \r\nb\t\r\n") == "a\nb"
     assert canon_text("é") == "é"
+    assert salted_commit(b"", bytes(32)) == h(bytes(32))
     assert jcs({"b": 1, "a": [True, None]}) == '{"a":[true,null],"b":1}'
     assert _es_number(1e21) == "1e+21" and _es_number(1e-7) == "1e-7"
     assert _es_number(0.000001) == "0.000001" and _es_number(123.456) == "123.456"

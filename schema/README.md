@@ -12,9 +12,9 @@
 
 - `additionalProperties: false` on every object except `extensions` (whose keys must be reverse-DNS names) ([REQ-0003], [REQ-0110]).
 - Conditional rules use `if`/`then`:
-  - `prompt.storage = escrow` ⇒ `escrow_ref` required, `text` forbidden ([REQ-0043]);
-  - `prompt.storage = public` ⇒ `text` required and `disclosure_policy = public` ([REQ-0045], [REQ-0305]);
-  - `prompt.storage = none` ⇒ `escrow_ref` and `text` forbidden ([REQ-0046]);
+  - `prompt.storage = escrow` ⇒ `escrow_ref` required, `text` forbidden, salted `canonicalization` ([REQ-0043], [REQ-0052]);
+  - `prompt.storage = public` ⇒ `text` required, `disclosure_policy = public`, unsalted `canonicalization` ([REQ-0045], [REQ-0305], [REQ-0052]);
+  - `prompt.storage = none` ⇒ `escrow_ref` and `text` forbidden, salted `canonicalization` ([REQ-0046], [REQ-0052]);
   - `generation.kind = edited | derived` ⇒ `parents` has at least one entry ([REQ-0073]);
   - `generation.kind = created` ⇒ no parent with `relation = previous_version` ([REQ-0074]).
 - `dependentRequired`: `runtime.volatile` requires `runtime.params_hash` ([REQ-0039]).

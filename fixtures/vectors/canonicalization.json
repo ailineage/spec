@@ -36,6 +36,24 @@
       "hash": "sha256:117a85e46ec77376d0335c11e64842995413395fc358a9d07a4f327577392daa"
     }
   ],
+  "salted": [
+    {
+      "name": "ascii",
+      "input": "Draw a red circle on a white background.",
+      "salt_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "salt_b64url": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "hashed_bytes_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f4472617720612072656420636972636c65206f6e2061207768697465206261636b67726f756e642e",
+      "hash": "sha256:dba55bb3d4fedf6a9406f2ea4f638deaa5f7ef7d581a4da8fa83a25edf5d4ccb"
+    },
+    {
+      "name": "czech-diacritics-nfd",
+      "input": "Příliš žluťoučký kůň úpěl ďábelské ódy",
+      "salt_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "salt_b64url": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "hashed_bytes_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f50c599c3ad6c69c5a120c5be6c75c5a56f75c48d6bc3bd206bc5afc58820c3ba70c49b6c20c48fc3a162656c736bc3a920c3b36479",
+      "hash": "sha256:b53ad33fe9df6feec7959acc4251b3b5df9e2241b3a0d9c7d184521a8834f25a"
+    }
+  ],
   "jcs": {
     "input": {
       "spec": "ailineage/0.1",
@@ -70,6 +88,16 @@
     },
     "canonical": "{\"attachments\":[\"urn:sha256:1f9cd740c721f1adfd070b4cc2ea3fc84e8406eacbad8e362dca26fc0dd273fa\"],\"text\":\"Describe this image\\nin one sentence.\"}",
     "hash": "sha256:66d8f81622273184235c23fc9913fd8d553fe80480aaa5560191f4129fc6a8e5"
+  },
+  "multimodal_salted": {
+    "input": {
+      "text": "  Describe this image\r\nin one sentence.  ",
+      "attachments": [
+        "urn:sha256:1f9cd740c721f1adfd070b4cc2ea3fc84e8406eacbad8e362dca26fc0dd273fa"
+      ]
+    },
+    "salt_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "hash": "sha256:5445606d123e927148bd36afe29016d160c327c3566419d1ceffdf18d77fe2fb"
   },
   "params": {
     "input": {

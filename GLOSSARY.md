@@ -20,11 +20,13 @@ Informative definitions for terms used in [SPEC.md](SPEC.md).
 - **Leaf** — a parent with no manifest; reported `UNPROVENANCED` in a chain report without breaking the child.
 - **Lineage chain** — the DAG obtained by following `parents[]` across manifests.
 - **Manifest** — the signed JSON object defined by SPEC.md §4 (`application/vnd.ailineage+json`).
+- **Opening** — the pair (plaintext, salt) that reveals a salted commitment; anyone can check it by recomputing the hash ([REQ-0310]).
 - **Perceptual hash** — a fingerprint that stays similar under re-encoding (`artifact.perceptual`), used to find candidates for stripped artifacts.
 - **Producer** — software that creates and signs manifests.
 - **Pseudonymous** — a principal that cannot be linked to a person without information held outside the manifest.
 - **Registry** — an optional service storing manifests, escrow ciphertext, revocations and disclosure audit logs.
 - **RFC 3161 token** — a TimeStampToken from a Time-Stamping Authority attesting that data (here: the signature) existed at `genTime`.
+- **Salt** — 32 random bytes prefixed to the canonical prompt before hashing, kept only with the plaintext, so that the commitment cannot be guessed or linked ([REQ-0308]).
 - **Sidecar** — a file `<artifact>.lineage.json` next to the artifact, carrying its manifest.
 - **Signing input** — the bytes that are signed: UTF-8 JCS of the manifest without `signature` and annotation members.
 - **TSA** — Time-Stamping Authority.

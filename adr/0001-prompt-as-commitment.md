@@ -1,6 +1,6 @@
 # ADR-0001: Prompt as commitment, not plaintext
 
-- Status: Accepted
+- Status: Accepted; amended by [ADR-0008](0008-mandatory-salted-prompt-commitment.md) (salted commitment)
 - Date: 2026-10-19
 - Deciders: Ol1n
 - Affects: SPEC.md §4.4, §6, §13; REQ-0040–0051, REQ-0300–0307, REQ-0801–0804
@@ -23,7 +23,7 @@ The manifest carries a **commitment** to the prompt, `prompt.hash` = SHA-256 ove
 - Manifests can be shared publicly without exposing prompts.
 - A commitment proves binding, not content: until disclosure, nobody can tell which prompt was used (THREAT_MODEL T5). The spec says so explicitly.
 - Canonicalization becomes critical: two systems must produce identical bytes for the same prompt. Test vectors are mandatory and machine-checked.
-- Short or predictable prompts can be recovered by guessing the hash input. This is documented ([REQ-0804]); a salted variant is an open question.
+- Short or predictable prompts can be recovered by guessing the hash input. [ADR-0008](0008-mandatory-salted-prompt-commitment.md) addresses this with a mandatory salt for hidden prompts.
 - Escrow introduces a custodian role with legal duties (retention, erasure, disclosure). That role is optional ([ADR-0006](0006-registry-and-escrow-model.md)).
 
 ## Alternatives
@@ -31,4 +31,4 @@ The manifest carries a **commitment** to the prompt, `prompt.hash` = SHA-256 ove
 - **Plaintext always.** Simplest to verify. Rejected: unacceptable for confidential and personal data, conflicts with GDPR data minimisation, would block adoption by deployers.
 - **Nothing about the prompt.** Maximum privacy. Rejected: removes the "from what" in "who asked, which model, from what"; disputes would rely on unverifiable recollection.
 - **Encrypted prompt inside the manifest.** Rejected: ciphertext travels with every copy forever, keys get lost or leaked, and later algorithm breaks expose all copies. Keeping ciphertext at a custodian limits copies and allows audited release.
-- **Salted or keyed commitment (HMAC).** Defeats guessing attacks. Deferred to a future version because it needs a salt-handling story for disclosure; tracked in OPEN_QUESTIONS.md.
+- **Salted or keyed commitment (HMAC).** Defeats guessing attacks. Not part of the original decision; adopted later as a per-commitment salt by [ADR-0008](0008-mandatory-salted-prompt-commitment.md).

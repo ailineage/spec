@@ -198,12 +198,12 @@
       "required": ["hash", "canonicalization", "storage", "disclosure_policy", "contains_pii"],
       "properties": {
         "hash": {
-          "description": "REQ-0040: sha256 over the canonicalized prompt.",
+          "description": "REQ-0040: commitment to the canonicalized prompt; salted unless storage=public (REQ-0308).",
           "$ref": "#/$defs/hash"
         },
         "canonicalization": {
-          "description": "REQ-0041: prompt canonicalization identifier (CANONICALIZATION.md).",
-          "enum": ["utf8-nfc-trim-v1", "multimodal-v1"]
+          "description": "REQ-0041, REQ-0052: prompt canonicalization identifier (CANONICALIZATION.md). Salted variants are required unless storage=public (ADR-0008).",
+          "enum": ["utf8-nfc-trim-salted-v1", "multimodal-salted-v1", "utf8-nfc-trim-v1", "multimodal-v1"]
         },
         "storage": {
           "description": "REQ-0042: where the prompt plaintext lives.",
@@ -226,7 +226,7 @@
           "type": "boolean"
         },
         "system_prompt_hash": {
-          "description": "REQ-0049: sha256 over the canonicalized system prompt.",
+          "description": "REQ-0049: commitment to the system prompt, same canonicalization as prompt.hash, own salt.",
           "$ref": "#/$defs/hash"
         },
         "context_refs": {
@@ -243,22 +243,30 @@
       },
       "allOf": [
         {
-          "description": "REQ-0043: storage=escrow requires escrow_ref and forbids text.",
+          "description": "REQ-0043, REQ-0052: storage=escrow requires escrow_ref and a salted canonicalization, and forbids text.",
           "if": { "properties": { "storage": { "const": "escrow" } }, "required": ["storage"] },
-          "then": { "required": ["escrow_ref"], "not": { "required": ["text"] } }
-        },
-        {
-          "description": "REQ-0045, REQ-0305: storage=public requires text and disclosure_policy=public.",
-          "if": { "properties": { "storage": { "const": "public" } }, "required": ["storage"] },
           "then": {
-            "required": ["text"],
-            "properties": { "disclosure_policy": { "const": "public" } }
+            "required": ["escrow_ref"],
+            "not": { "required": ["text"] },
+            "properties": { "canonicalization": { "enum": ["utf8-nfc-trim-salted-v1", "multimodal-salted-v1"] } }
           }
         },
         {
-          "description": "REQ-0046: storage=none forbids escrow_ref and text.",
+          "description": "REQ-0045, REQ-0305, REQ-0052: storage=public requires text, disclosure_policy=public and an unsalted canonicalization.",
+          "if": { "properties": { "storage": { "const": "public" } }, "required": ["storage"] },
+          "then": {
+            "required": ["text"],
+            "properties": {
+              "disclosure_policy": { "const": "public" },
+              "canonicalization": { "enum": ["utf8-nfc-trim-v1", "multimodal-v1"] }
+            }
+          }
+        },
+        {
+          "description": "REQ-0046, REQ-0052: storage=none requires a salted canonicalization and forbids escrow_ref and text.",
           "if": { "properties": { "storage": { "const": "none" } }, "required": ["storage"] },
           "then": {
+            "properties": { "canonicalization": { "enum": ["utf8-nfc-trim-salted-v1", "multimodal-salted-v1"] } },
             "allOf": [
               { "not": { "required": ["escrow_ref"] } },
               { "not": { "required": ["text"] } }

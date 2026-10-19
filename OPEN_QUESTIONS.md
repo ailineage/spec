@@ -4,7 +4,7 @@ Decisions the 0.1 draft deliberately leaves open. Each answer should become an A
 
 1. ~~**Multihash vs SHA-256 only.**~~ **Resolved** by [ADR-0007](adr/0007-digest-format-sha256-extensible.md): SHA-256 with the algorithm prefix, extensible through a digest algorithm registry; no multihash.
 
-2. **Salted prompt commitment.** An unsalted SHA-256 of a short or predictable prompt can be recovered by guessing ([REQ-0804]). Options: add `prompt.salt_ref` (salt escrowed with the plaintext), use HMAC with a per-principal key, or accept the risk and document it. This changes `prompt.hash` semantics, so it should be decided before 1.0.
+2. ~~**Salted prompt commitment.**~~ **Resolved** by [ADR-0008](adr/0008-mandatory-salted-prompt-commitment.md): mandatory per-commitment 32-byte salt for `storage` = `escrow` or `none`; public prompts stay unsalted.
 
 3. **CBOR profile for C2PA.** C2PA assertions are CBOR. Do we define a deterministic-CBOR serialization (RFC 8949 §4.2) of the same data model with its own signing input, or keep JSON inside the C2PA assertion permanently ([ADR-0004](adr/0004-canonicalization-jcs.md))? If CBOR: in 0.2, or together with the phase-5 C2PA work?
 

@@ -2,15 +2,17 @@
 
 This document is normative. It defines the exact byte sequences that AILineage hashes and signs. Requirement IDs refer to [SPEC.md](SPEC.md).
 
-All test vectors in §7 are computed by [`fixtures/regen.py`](fixtures/regen.py) and checked in CI by `make test-vectors`. They are never edited by hand. The same vectors are available as JSON in [`fixtures/vectors/canonicalization.json`](fixtures/vectors/canonicalization.json).
+All test vectors in §8 are computed by [`fixtures/regen.py`](fixtures/regen.py) and checked in CI by `make test-vectors`. They are never edited by hand. The same vectors are available as JSON in [`fixtures/vectors/canonicalization.json`](fixtures/vectors/canonicalization.json).
 
 ## 1. Overview
 
 | What | Method | Used by |
 | --- | --- | --- |
 | Manifest signing input | JCS (RFC 8785) of the manifest minus `signature` and annotation members | `signature.sig` ([REQ-0500]) |
-| Text prompt | `utf8-nfc-trim-v1` | `prompt.hash`, `prompt.system_prompt_hash` |
-| Prompt with attachments | `multimodal-v1` | `prompt.hash` |
+| Text prompt, hidden (`storage` = `escrow` or `none`) | `utf8-nfc-trim-salted-v1` | `prompt.hash`, `prompt.system_prompt_hash` |
+| Prompt with attachments, hidden | `multimodal-salted-v1` | `prompt.hash` |
+| Text prompt, public (`storage` = `public`) | `utf8-nfc-trim-v1` | `prompt.hash`, `prompt.system_prompt_hash` |
+| Prompt with attachments, public | `multimodal-v1` | `prompt.hash` |
 | Generation parameters | JCS of params minus `volatile` keys | `runtime.params_hash` |
 | Workflow definition | JCS if JSON, raw bytes otherwise | `runtime.workflow_hash` |
 | Artifact | per-container hashable bytes (SPEC.md §5) | `artifact.id`, `parents[].id`, `context_refs[]` |
@@ -62,7 +64,22 @@ A prompt consisting of text plus non-text inputs (images, audio, documents attac
 
 Attachments that are themselves AILineage artifacts SHOULD also appear in `parents` with relation `input` or `reference`.
 
-## 5. Parameters: `params_hash`
+## 5. Salted commitment: `utf8-nfc-trim-salted-v1`, `multimodal-salted-v1`
+
+The salted methods hide the prompt from guessing ([REQ-0308]–[REQ-0311], [ADR-0008](adr/0008-mandatory-salted-prompt-commitment.md)). They are required whenever `storage` is `escrow` or `none` ([REQ-0052]).
+
+1. Compute the canonical bytes `C` exactly as for the unsalted method: §3 steps 1–5 for `utf8-nfc-trim-salted-v1`, §4 steps 1–3 for `multimodal-salted-v1`.
+2. Take a fresh 32-byte salt `S` from a cryptographically secure random number generator.
+3. `prompt.hash = "sha256:" || hex(SHA-256(S || C))`, where `||` is byte concatenation and `S` comes first.
+4. Keep the opening (plaintext, `S`) where the plaintext is kept: in the escrow ciphertext, or with the principal. Never in the manifest. As text, `S` is base64url without padding.
+
+To check an opening, recompute step 1 from the disclosed plaintext and step 3 with the disclosed salt, and compare with `prompt.hash`.
+
+*Why a 32-byte prefix and not HMAC:* the salt has a fixed length, so `S || C` is unambiguous, and the construction is a standard hash commitment: hiding because `S` is unknown and random, binding because SHA-256 is collision-resistant. HMAC would add nothing here. A per-principal HMAC key was rejected, because disclosing one prompt would require releasing the key and expose every other prompt of that principal to guessing.
+
+*Why public prompts stay unsalted:* the text is in the manifest, so a salt would hide nothing, and every Verifier must be able to re-hash it ([REQ-0302]).
+
+## 6. Parameters: `params_hash`
 
 1. Take the generation parameter object as sent to the model or tool (`steps`, `cfg`, `temperature`, …).
 2. Remove the top-level members whose names are listed in `generation.runtime.volatile`. Only top-level members can be listed.
@@ -71,15 +88,15 @@ Attachments that are themselves AILineage artifacts SHOULD also appear in `paren
 
 The Producer MUST NOT include the prompt text in the parameter object it hashes; the prompt is committed separately ([REQ-0304]).
 
-## 6. Other digests
+## 7. Other digests
 
 - `runtime.workflow_hash` — SHA-256 over `JCS(workflow)` if the workflow is JSON (ComfyUI API format, LangGraph JSON), over the raw bytes otherwise. Prompt-bearing values SHOULD be replaced with the literal `<prompt>` first ([REQ-0037]).
 - `model.version_hash` — SHA-256 over the weights file, or over `JCS` of the array of per-file `"sha256:<hex>"` digests ordered by file name ([REQ-0032]).
 - `ts` imprint — SHA-256 over the raw signature bytes (decoded `sig`) ([REQ-0505]).
 
-## 7. Test vectors
+## 8. Test vectors
 
-The input strings below are written as Python string literals so that every code point (including decomposed diacritics, zero-width joiners and control characters) is unambiguous. The UTF-8 hex of each input is also given.
+The salted vectors use the fixed salt `00 01 02 … 1f`. Real salts MUST be random ([REQ-0308]). The input strings below are written as Python string literals so that every code point (including decomposed diacritics, zero-width joiners and control characters) is unambiguous. The UTF-8 hex of each input is also given.
 
 <!-- BEGIN GENERATED: test-vectors (fixtures/regen.py) -->
 
@@ -215,6 +232,42 @@ SHA-256:
 sha256:117a85e46ec77376d0335c11e64842995413395fc358a9d07a4f327577392daa
 ```
 
+### Salted prompt vectors (`utf8-nfc-trim-salted-v1`)
+
+Same inputs as the vectors of the same name above. Salt (32 bytes, test only):
+
+```text
+000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+```
+
+#### `ascii` (salted)
+
+Hashed bytes `salt || canonical` (hex):
+
+```text
+000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f4472617720612072656420636972636c65206f6e2061207768697465206261636b67726f756e642e
+```
+
+SHA-256:
+
+```text
+sha256:dba55bb3d4fedf6a9406f2ea4f638deaa5f7ef7d581a4da8fa83a25edf5d4ccb
+```
+
+#### `czech-diacritics-nfd` (salted)
+
+Hashed bytes `salt || canonical` (hex):
+
+```text
+000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f50c599c3ad6c69c5a120c5be6c75c5a56f75c48d6bc3bd206bc5afc58820c3ba70c49b6c20c48fc3a162656c736bc3a920c3b36479
+```
+
+SHA-256:
+
+```text
+sha256:b53ad33fe9df6feec7959acc4251b3b5df9e2241b3a0d9c7d184521a8834f25a
+```
+
 ### JCS vector
 
 Input (Python literal; `-0.0`, `1e21` and `1e-7` exercise number serialization):
@@ -255,6 +308,14 @@ SHA-256:
 sha256:66d8f81622273184235c23fc9913fd8d553fe80480aaa5560191f4129fc6a8e5
 ```
 
+### Multimodal salted vector (`multimodal-salted-v1`)
+
+Same input and canonical form as above, same test salt. SHA-256:
+
+```text
+sha256:5445606d123e927148bd36afe29016d160c327c3566419d1ceffdf18d77fe2fb
+```
+
 ### Params vector (`params_hash`)
 
 Input:
@@ -277,7 +338,7 @@ sha256:3c18fc58cd350eccc0d092bc00e9d4c9d58ae7918cd7c1e78ad8975e18464698
 
 <!-- END GENERATED: test-vectors -->
 
-## 8. References
+## 9. References
 
 - [RFC 8785] JSON Canonicalization Scheme (JCS). <https://www.rfc-editor.org/rfc/rfc8785>
 - [UAX15] Unicode Normalization Forms. <https://www.unicode.org/reports/tr15/>
