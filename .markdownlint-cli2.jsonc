@@ -1,0 +1,11 @@
+{
+  // markdownlint configuration for the spec repository
+  "config": {
+    "default": true,
+    "MD013": false,          // long lines: tables and normative sentences
+    "MD024": { "siblings_only": true },
+    "MD033": false,          // inline HTML for generated-block markers
+    "MD041": false           // first line heading: .github templates use front matter
+  },
+  "ignores": ["node_modules/**", "fixtures/data/**"]
+}
