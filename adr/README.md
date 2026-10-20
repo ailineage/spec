@@ -8,12 +8,13 @@ Every normative change to the specification is recorded as an ADR ([GOVERNANCE.m
 | --- | --- | --- |
 | [0001](0001-prompt-as-commitment.md) | Prompt as commitment, not plaintext | Accepted, amended by ADR-0008 |
 | [0002](0002-three-state-verification.md) | Three-state verification | Accepted |
-| [0003](0003-embed-into-c2pa-and-in-toto.md) | Embed into C2PA and in-toto | Accepted |
+| [0003](0003-embed-into-c2pa-and-in-toto.md) | Embed into C2PA and in-toto | Accepted; fallback carriers detailed by ADR-0009 |
 | [0004](0004-canonicalization-jcs.md) | JCS canonicalization for 0.x | Accepted |
 | [0005](0005-signature-suites.md) | Signature suites: ES256 and EdDSA | Accepted |
 | [0006](0006-registry-and-escrow-model.md) | Optional registry and escrow model | Accepted |
 | [0007](0007-digest-format-sha256-extensible.md) | Digest format: SHA-256 with an algorithm prefix | Accepted |
 | [0008](0008-mandatory-salted-prompt-commitment.md) | Mandatory salted prompt commitment | Accepted |
+| [0009](0009-embedding-jpeg-webp-mp4.md) | Embedding in JPEG, WebP and MP4 | Accepted |
 
 ## Template
 

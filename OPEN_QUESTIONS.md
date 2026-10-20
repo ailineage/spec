@@ -8,9 +8,9 @@ Decisions the 0.1 draft deliberately leaves open. Each answer should become an A
 
 3. **CBOR profile for C2PA.** C2PA assertions are CBOR. Do we define a deterministic-CBOR serialization (RFC 8949 §4.2) of the same data model with its own signing input, or keep JSON inside the C2PA assertion permanently ([ADR-0004](adr/0004-canonicalization-jcs.md))? If CBOR: in 0.2, or together with the phase-5 C2PA work?
 
-4. **Media type and name registrations.** Register `application/vnd.ailineage+json` in the IANA vendor tree now, or wait for an IETF Internet-Draft? Same for the XMP namespace `http://ailineage.org/ns/0.1/`, the PNG keyword `ailineage` and the MP4 box `ailn`. All depend on the `ailineage.org` domain being secured first.
+4. **Media type and name registrations.** Register `application/vnd.ailineage+json` in the IANA vendor tree now, or wait for an IETF Internet-Draft? Same for the XMP namespace `http://ailineage.org/ns/0.1/`, the PNG keyword `ailineage` and the WebP chunk FourCC `AILN`. All depend on the `ailineage.org` domain being secured first.
 
-5. **JPEG, WebP and MP4 embedding.** 0.1 puts the manifest in a *second*, dedicated APP1 XMP packet so that removal is a pure byte operation ([REQ-0215]–[REQ-0217]); many XMP readers only read the first packet. Alternatives: a dedicated APP11/JUMBF box (as C2PA does) or a custom APP segment. WebP allows only one XMP chunk, and MP4 removal needs a canonical box-size rewrite rule. Which mechanisms become normative in the `embed/` document?
+5. ~~**JPEG, WebP and MP4 embedding.**~~ **Resolved** by [ADR-0009](adr/0009-embedding-jpeg-webp-mp4.md): JPEG uses a JUMBF box labelled `ailineage` in APP11 segments, WebP a top-level `AILN` chunk (both normative in 0.1), and MP4 a trailing top-level `uuid` box (normative after M2).
 
 6. **Escrow key management and GDPR retention.** REQ-0303 forbids the custodian decrypting alone but does not prescribe how keys are held (principal-held key, threshold scheme, HSM with dual control). Separately: how does a data-subject erasure request interact with the evidentiary purpose of escrow ([REQ-0806])? Needs the legal review planned in the roadmap.
 

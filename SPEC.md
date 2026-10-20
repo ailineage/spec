@@ -102,7 +102,7 @@ P = Producer, V = Verifier, R = Registry. "●" means the requirement binds that
 | 0008 | Signed revocation list | | | ● |
 | 0010–0127 | Data model fields (§4) | ● | ● | |
 | 0200–0203 | Artifact identifier | ● | ● | |
-| 0210–0222 | Per-format hashing (PNG, JPEG, sidecar, header) | ● | ● | |
+| 0210–0228 | Per-format hashing (PNG, JPEG, WebP, sidecar, header) | ● | ● | |
 | 0230–0233 | Digest format and algorithm registry | ● | ● | ● |
 | 0300–0301, 0304 | Prompt commitment | ● | | |
 | 0302 | Public prompt re-hash | | ● | |
@@ -335,12 +335,12 @@ signature       { alg, kid, ts, sig, chain? }
 
 ### 5.1 Artifact identifier
 
-- **[REQ-0200]** `artifact.id` MUST be `urn:sha256:` followed by the 64 lowercase hex digits of SHA-256 over the **hashable bytes** of the artifact (digest format: §5.5). The hashable bytes are the artifact's bytes with every embedded AILineage manifest removed, as defined per container below.
+- **[REQ-0200]** `artifact.id` MUST be `urn:sha256:` followed by the 64 lowercase hex digits of SHA-256 over the **hashable bytes** of the artifact (digest format: §5.6). The hashable bytes are the artifact's bytes with every embedded AILineage manifest removed, as defined per container below.
 - **[REQ-0201]** Producers MUST compute the identifier over the final encoded bytes, after any compression or encoding and before embedding the manifest. A Verifier MUST recompute the identifier from the artifact it is given, never trust the manifest's value.
 - **[REQ-0202]** The removal procedure MUST be a pure byte operation: it MUST NOT decode and re-encode pixel, audio or text data.
 - **[REQ-0203]** Any re-encoding of the artifact (JPEG re-save, image resizing, transcoding, newline conversion) produces different bytes and therefore a different artifact. A service that re-encodes SHOULD emit a new manifest with `generation.kind = derived` and the original as `input` parent. This is why `artifact.perceptual` and the Registry exist (§13, THREAT_MODEL T1).
 
-Normative container rules exist for PNG, JPEG and sidecar files (§5.2–§5.4). Rules for WebP, MP4, PDF and Git are informative in 0.1 (§10) and will be specified in a separate `embed/` document.
+Normative container rules exist for PNG, JPEG, WebP and sidecar files (§5.2–§5.5), following [ADR-0009](adr/0009-embedding-jpeg-webp-mp4.md). Rules for MP4, PDF and Git are informative in 0.1 (§10) and will be specified in a separate `embed/` document.
 
 ### 5.2 PNG
 
@@ -352,13 +352,28 @@ Example: [`examples/png-itxt/`](examples/png-itxt/).
 
 ### 5.3 JPEG
 
-- **[REQ-0215]** A Producer embedding into JPEG MUST write the manifest in a dedicated APP1 segment that starts with the XMP identifier `http://ns.adobe.com/xap/1.0/\0` and contains a single XMP packet whose only non-RDF namespace is `http://ailineage.org/ns/0.1/` (prefix `ailineage`). The manifest JSON is the value of property `ailineage:manifest`.
-- **[REQ-0216]** The hashable bytes of a JPEG file are the file's bytes with every APP1 segment removed that satisfies [REQ-0215]: XMP identifier present and the namespace `http://ailineage.org/ns/0.1/` declared in the packet. Each removed segment is removed whole: the `FF E1` marker, the length field and the payload. Other APP1 segments, including the main XMP packet, stay unchanged.
-- **[REQ-0217]** A Producer MUST NOT write AILineage properties into the main XMP packet, because removing them would require re-serializing XMP and break [REQ-0202].
+The manifest is a JUMBF box [JUMBF] in APP11 marker segments, the same carrier C2PA uses for JPEG. The box is separate from any C2PA manifest store and from the file's XMP, so removing it never touches other metadata.
 
-The dedicated packet sits beside the file's main XMP packet. Most XMP readers read only the first packet; see OPEN_QUESTIONS.md.
+- **[REQ-0215]** A Producer embedding into JPEG MUST write the manifest as one JUMBF superbox (`jumb`) whose description box (`jumd`) has the JSON content type UUID `6A736F6E-0011-0010-8000-00AA00389B71`, toggles `0x03` (requestable, label present) and the label `ailineage` (UTF-8, NUL-terminated), followed by exactly one JSON content box (`json`) holding the UTF-8 manifest JSON. The `jumd` box MUST NOT carry an ID or a signature field.
+- **[REQ-0216]** The superbox MUST be carried in one or more APP11 (`FF EB`) marker segments as specified by ISO/IEC 19566-5: each segment payload starts with the common identifier `JP` (`4A 50`), a 2-byte box instance number `En` and a 4-byte packet sequence number `Z` starting at 1, followed by the superbox's `LBox` and `TBox`, repeated in every segment, and the next part of the superbox payload. All segments of the box MUST use the same `En`, and that `En` MUST differ from the instance number of every other JUMBF box in the file. The segments MUST be consecutive, MUST precede the first SOS marker and SHOULD immediately follow the last APPn segment of the file header.
+- **[REQ-0217]** The hashable bytes of a JPEG file are the file's bytes with every APP11 segment removed whose common identifier is `JP` and whose `En` equals the `En` of a box identified by [REQ-0215] (the segment with `Z = 1` whose `jumd` label is `ailineage`). Each removed segment is removed whole: marker, length field and payload. Only marker segments before the first SOS marker are examined; all other bytes, including other APP11 segments such as a C2PA manifest store, stay unchanged and in order.
+- **[REQ-0218]** A Producer MUST embed at most one `ailineage` box. A Verifier that finds more than one MUST report `SCHEMA_INVALID`.
+- **[REQ-0219]** A Producer MUST NOT write AILineage data into XMP, Exif or another application's JUMBF box, because removing it would require re-serializing that metadata and break [REQ-0202].
 
-### 5.4 Sidecar files and text
+Example: [`examples/jpeg-jumbf/`](examples/jpeg-jumbf/).
+
+### 5.4 WebP
+
+The manifest is a top-level RIFF chunk of its own type, because a WebP file may hold only one XMP chunk.
+
+- **[REQ-0225]** A Producer embedding into WebP MUST write the manifest as a RIFF chunk with FourCC `AILN` whose payload is the UTF-8 manifest JSON, followed by one `0x00` padding byte when the payload length is odd [RFC9649]. The chunk MUST be a top-level chunk and SHOULD be the last chunk of the file.
+- **[REQ-0226]** The file MUST use the extended format (`VP8X` chunk). A Producer that starts from a simple-format file (a single `VP8` or `VP8L` chunk; the lossy FourCC is `VP8` followed by a space) MUST first convert it by inserting a `VP8X` chunk with the canvas size and alpha flag taken from the bitstream; this is a container rewrite, not a re-encode. The conversion happens before the identifier is computed ([REQ-0201]), so `artifact.id` covers the extended-format bytes.
+- **[REQ-0227]** The hashable bytes of a WebP file are the file's bytes with every `AILN` chunk removed (header, payload and padding byte) and the RIFF size field (bytes 4–7, little-endian) reduced by the number of bytes removed. All other chunks stay unchanged and in order.
+- **[REQ-0228]** A Producer MUST embed at most one `AILN` chunk. A Verifier that finds more than one MUST report `SCHEMA_INVALID`.
+
+Example: [`examples/webp-chunk/`](examples/webp-chunk/).
+
+### 5.5 Sidecar files and text
 
 - **[REQ-0220]** For a sidecar manifest, the hashable bytes are the artifact file's bytes exactly as stored, with no newline or encoding normalization. The sidecar file MUST be named `<artifact file name>.lineage.json` and placed in the same directory.
 - **[REQ-0221]** A text or code file MAY carry a header comment that points to its manifest. The header is a single line within the first three lines of the file containing the token `ailineage: urn:sha256:<64 hex>`, wrapped in the comment syntax of the language (`// ailineage: urn:sha256:…`, `# ailineage: urn:sha256:…`). The hashable bytes are the file's bytes with the first such line removed, including its line terminator. Only the first matching line within the first three lines is removed.
@@ -366,7 +381,7 @@ The dedicated packet sits beside the file's main XMP packet. Most XMP readers re
 
 Example: [`examples/sidecar/`](examples/sidecar/).
 
-### 5.5 Digest format and algorithm agility
+### 5.6 Digest format and algorithm agility
 
 AILineage names the hash algorithm in every digest, so new algorithms can be added without changing the format ([ADR-0007](adr/0007-digest-format-sha256-extensible.md)).
 
@@ -535,19 +550,19 @@ Warnings never change the state.
 
 ## 10. Embedding (informative)
 
-This section summarizes where a manifest lives in each container and what is hashed. Rules for PNG, JPEG and sidecar are normative in §5. All other rows are informative in 0.1 and will be specified in `embed/` documents.
+This section summarizes where a manifest lives in each container and what is hashed. Rules for PNG, JPEG, WebP and sidecar are normative in §5. All other rows are informative in 0.1 and will be specified in `embed/` documents. The MP4 mechanism is decided in [ADR-0009](adr/0009-embedding-jpeg-webp-mp4.md) and becomes normative after milestone M2.
 
 | Format | Location | Hashable bytes |
 | --- | --- | --- |
 | PNG | `iTXt` chunk, keyword `ailineage`, before `IEND` | file minus that chunk (§5.2) |
-| JPEG | dedicated APP1 XMP packet, namespace `http://ailineage.org/ns/0.1/`, property `ailineage:manifest` | file minus that APP1 segment (§5.3) |
-| WebP | `XMP` chunk (FourCC `XMP` plus a trailing space) in the RIFF container, same namespace | file minus that chunk, with RIFF size field recomputed — **open**: the WebP container allows only one XMP chunk (see OPEN_QUESTIONS.md) |
-| MP4 / MOV | `udta` box containing a box of type `ailn` with the UTF-8 manifest | file minus the `ailn` box, with ancestor box sizes recomputed — **open**: requires a canonical box-rewrite rule |
+| JPEG | JUMBF box labelled `ailineage` in APP11 segment(s) | file minus those APP11 segments (§5.3) |
+| WebP | top-level `AILN` chunk, extended format (`VP8X`) | file minus that chunk, RIFF size field reduced (§5.4) |
+| MP4 / MOV | top-level `uuid` box, user type `2243035f-b214-4a85-b066-27aee0493d17`, payload the UTF-8 manifest JSON, last box of the file | file minus that box, which is a truncation; no other box or offset changes |
 | PDF | XMP metadata stream with the AILineage namespace, appended as an incremental update | bytes of the PDF before the incremental update |
-| Text / code | sidecar `<file>.lineage.json`; optional header comment `ailineage: urn:sha256:…` | file bytes, minus the header line if present (§5.4) |
+| Text / code | sidecar `<file>.lineage.json`; optional header comment `ailineage: urn:sha256:…` | file bytes, minus the header line if present (§5.5) |
 | Git | `refs/notes/ailineage` note on the commit; JSON Lines, one manifest per changed file | each file's blob content bytes (SHA-256, not the Git object id) |
 
-Examples: [`examples/png-itxt/`](examples/png-itxt/), [`examples/sidecar/`](examples/sidecar/), [`examples/git-notes/`](examples/git-notes/).
+Examples: [`examples/png-itxt/`](examples/png-itxt/), [`examples/jpeg-jumbf/`](examples/jpeg-jumbf/), [`examples/webp-chunk/`](examples/webp-chunk/), [`examples/sidecar/`](examples/sidecar/), [`examples/git-notes/`](examples/git-notes/).
 
 ## 11. Interop profiles (informative)
 
@@ -639,11 +654,13 @@ This version reserves the names below. Registration is future work and tracked i
 
 | Name | Value | Status |
 | --- | --- | --- |
-| Digest algorithm registry | `sha256` (64 hex digits) | defined by this specification (§5.5); extended only by ADR |
+| Digest algorithm registry | `sha256` (64 hex digits) | defined by this specification (§5.6); extended only by ADR |
 | Media type | `application/vnd.ailineage+json` | TODO: IANA vendor-tree registration; future IETF draft |
 | XMP namespace | `http://ailineage.org/ns/0.1/`, prefix `ailineage` | reserved; IPTC/XMP registration planned |
 | PNG iTXt keyword | `ailineage` | reserved; PNG keyword registry submission planned |
-| MP4 box type | `ailn` | reserved; MP4RA registration planned |
+| JUMBF label (JPEG) | `ailineage` | reserved |
+| WebP chunk FourCC | `AILN` | reserved |
+| MP4 `uuid` box user type | `2243035f-b214-4a85-b066-27aee0493d17` | fixed by ADR-0009; no registration needed |
 | C2PA assertion label | `org.ailineage.lineage` | reserved (entity-specific label) |
 | in-toto predicate type | `https://ailineage.org/predicate/v0.1` | reserved |
 | URN namespaces | `urn:ailineage:registry:…`, `urn:ailineage:escrow:…` | informal; formal URN namespace (RFC 8141) not requested |
@@ -677,6 +694,8 @@ This version reserves the names below. Registration is future work and tracked i
 - [DID-CORE] W3C, "Decentralized Identifiers (DIDs) v1.0". <https://www.w3.org/TR/did-core/>
 - [DID-KEY] W3C CCG, "The did:key Method". <https://w3c-ccg.github.io/did-method-key/>
 - [PNG] W3C, "Portable Network Graphics (PNG) Specification (Third Edition)". <https://www.w3.org/TR/png-3/>
+- [JUMBF] ISO/IEC 19566-5, "Information technologies — JPEG systems — Part 5: JPEG universal metadata box format (JUMBF)".
+- [RFC9649] Zern, J., Massimino, P., Alakuijala, J., "WebP Image Format", RFC 9649. <https://www.rfc-editor.org/rfc/rfc9649>
 - [XMP] ISO 16684-1, "Graphic technology — Extensible metadata platform (XMP) — Part 1: Data model, serialization and core properties".
 - [C2PA] C2PA, "C2PA Technical Specification", version 2.x. <https://spec.c2pa.org/>
 - [IN-TOTO] in-toto, "in-toto Attestation Framework Spec v1". <https://github.com/in-toto/attestation/tree/main/spec/v1>

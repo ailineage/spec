@@ -190,7 +190,7 @@ def params_hash(params: dict, volatile: list[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Container helpers: PNG, text header comment
+# Container helpers: PNG, JPEG, WebP, text header comment
 # ---------------------------------------------------------------------------
 
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
@@ -246,6 +246,125 @@ def make_png(w: int, h_: int, pixel) -> bytes:
     return PNG_SIG + png_chunk(b"IHDR", ihdr) + png_chunk(
         b"IDAT", zlib.compress(bytes(raw), 9)
     ) + png_chunk(b"IEND", b"")
+
+
+# JPEG: APP11 segments carrying a JUMBF superbox labelled 'ailineage' (§5.3)
+JUMBF_JSON_UUID = bytes.fromhex("6a736f6e00110010800000aa00389b71")
+JPEG_LABEL = b"ailineage"
+JPEG_MAX_PAYLOAD = 0xFFFF - 2 - 8 - 8  # Le, CI+En+Z, repeated LBox+TBox
+
+
+def jpeg_segments(b: bytes):
+    """Yield (start, end, marker) for each marker segment before the first SOS,
+    then (start, len(b), 0xDA) for SOS and everything after it."""
+    assert b[:2] == b"\xff\xd8", "not a JPEG"
+    i = 2
+    while i < len(b):
+        assert b[i] == 0xFF, "bad marker at %d" % i
+        m = b[i + 1]
+        if m == 0xDA:
+            yield i, len(b), m
+            return
+        (n,) = struct.unpack(">H", b[i + 2:i + 4])
+        yield i, i + 2 + n, m
+        i += 2 + n
+
+
+def jpeg_ailineage_en(b: bytes) -> set[int]:
+    """Box instance numbers (En) of JUMBF boxes whose description label is 'ailineage'."""
+    ens = set()
+    for s, e, m in jpeg_segments(b):
+        seg = b[s + 4:e]
+        if m != 0xEB or seg[:2] != b"JP":
+            continue
+        (en,), (z,) = struct.unpack(">H", seg[2:4]), struct.unpack(">I", seg[4:8])
+        box = seg[8:]
+        if z == 1 and box[4:8] == b"jumb" and box[12:16] == b"jumd" and \
+                box[16:32] == JUMBF_JSON_UUID and box[32] & 0x02 and \
+                box[33:].split(b"\x00", 1)[0] == JPEG_LABEL:
+            ens.add(en)
+    return ens
+
+
+def jpeg_strip(b: bytes) -> bytes:
+    ens = jpeg_ailineage_en(b)
+    out = bytearray(b[:2])
+    for s, e, m in jpeg_segments(b):
+        if m == 0xEB and b[s + 4:s + 6] == b"JP" and \
+                struct.unpack(">H", b[s + 6:s + 8])[0] in ens:
+            continue
+        out += b[s:e]
+    return bytes(out)
+
+
+def jpeg_embed(b: bytes, manifest_json: bytes, en: int = 0x4149) -> bytes:
+    """Insert the manifest as APP11/JUMBF segment(s) after the last APPn segment
+    before the first non-APPn marker (or directly after SOI)."""
+    b = jpeg_strip(b)
+    label = JPEG_LABEL + b"\x00"
+    jumd = struct.pack(">I", 8 + 16 + 1 + len(label)) + b"jumd" + JUMBF_JSON_UUID + b"\x03" + label
+    jbox = struct.pack(">I", 8 + len(manifest_json)) + b"json" + manifest_json
+    payload = jumd + jbox
+    head = struct.pack(">I", 8 + len(payload)) + b"jumb"
+    segs = bytearray()
+    for z, off in enumerate(range(0, len(payload), JPEG_MAX_PAYLOAD), start=1):
+        body = b"JP" + struct.pack(">HI", en, z) + head + payload[off:off + JPEG_MAX_PAYLOAD]
+        segs += b"\xff\xeb" + struct.pack(">H", 2 + len(body)) + body
+    at = 2
+    for s, e, m in jpeg_segments(b):
+        if 0xE0 <= m <= 0xEF:
+            at = e
+        else:
+            break
+    return b[:at] + bytes(segs) + b[at:]
+
+
+# WebP: top-level RIFF chunk 'AILN' in the extended (VP8X) format (§5.4)
+def riff_chunks(b: bytes):
+    assert b[:4] == b"RIFF" and b[8:12] == b"WEBP", "not a WebP"
+    i = 12
+    while i < len(b):
+        fourcc = b[i:i + 4]
+        (n,) = struct.unpack("<I", b[i + 4:i + 8])
+        yield i, i + 8 + n + (n & 1), fourcc
+        i += 8 + n + (n & 1)
+
+
+def riff_build(chunks: bytes) -> bytes:
+    return b"RIFF" + struct.pack("<I", 4 + len(chunks)) + b"WEBP" + chunks
+
+
+def webp_strip(b: bytes) -> bytes:
+    return riff_build(b"".join(b[s:e] for s, e, c in riff_chunks(b) if c != b"AILN"))
+
+
+def webp_extend(b: bytes) -> bytes:
+    """Convert a simple-format WebP (one VP8 or VP8L chunk) to the extended format
+    by prepending a VP8X chunk. Pure container rewrite; the bitstream is untouched."""
+    chunks = list(riff_chunks(b))
+    if chunks[0][2] == b"VP8X":
+        return b
+    (s, e, c), = chunks
+    data = b[s + 8:e]
+    if c == b"VP8L":
+        v = int.from_bytes(data[1:5], "little")
+        w, h_, alpha = (v & 0x3FFF) + 1, ((v >> 14) & 0x3FFF) + 1, (v >> 28) & 1
+    elif c == b"VP8 ":
+        w, h_, alpha = (struct.unpack("<H", data[6:8])[0] & 0x3FFF,
+                        struct.unpack("<H", data[8:10])[0] & 0x3FFF, 0)
+    else:
+        raise ValueError("unsupported WebP chunk %r" % c)
+    vp8x = bytes([0x10 if alpha else 0]) + b"\x00\x00\x00" + \
+        (w - 1).to_bytes(3, "little") + (h_ - 1).to_bytes(3, "little")
+    return riff_build(b"VP8X" + struct.pack("<I", 10) + vp8x + b[s:e])
+
+
+def webp_embed(b: bytes, manifest_json: bytes) -> bytes:
+    """Append an 'AILN' chunk as the last chunk of the extended-format file."""
+    b = webp_strip(webp_extend(b))
+    pad = b"\x00" if len(manifest_json) & 1 else b""
+    return riff_build(b[12:] + b"AILN" + struct.pack("<I", len(manifest_json)) +
+                      manifest_json + pad)
 
 
 HEADER_RE = re.compile(rb"ailineage: urn:sha256:[0-9a-f]{64}")
@@ -566,6 +685,12 @@ def build_data(write: bool):
     load_salts(write)
     # clip.mp4 is produced once by ffmpeg (see fixtures/README.md) and committed.
     D["clip.mp4"] = (DATA / "clip.mp4").read_bytes()
+    # image-64.jpg and image-64.webp are produced once by ffmpeg and cwebp
+    # (see fixtures/README.md). The WebP artifact is the extended-format file
+    # (REQ-0226), derived here by a pure container rewrite.
+    D["image-64.jpg"] = (DATA / "image-64.jpg").read_bytes()
+    D["image-64.webp"] = (DATA / "image-64.webp").read_bytes()
+    D["image-64.ext.webp"] = webp_extend(D["image-64.webp"])
 
 
 SALTS: dict[str, bytes] = {}
@@ -632,6 +757,8 @@ PROMPTS = {
     "10": "Write a haiku about stripped metadata and a registry that remembers.",
     "11": "Say hello.",
     "12": "Summarise the 2027 municipal budget proposal in two sentences.",
+    "13": "A watercolor fox sleeping under a birch tree, JPEG output for the web gallery",
+    "14": "A watercolor fox sleeping under a birch tree, lossless WebP sticker",
 }
 
 
@@ -811,6 +938,18 @@ def define_fixtures():
         flags=["public-interest-text"],
         extra={"jurisdiction": {"produced_in": "CZ", "regimes": ["eu-ai-act-art50"]}},
     ), "pseudonymous.txt", "sidecar")
+
+    FIXTURES["13-image-jpeg-jumbf.json"] = (base(
+        "image-64.jpg", "image/jpeg", "2026-10-20T08:00:00Z", "created", flux,
+        p_escrow("13", "01J9ZKBH8J9K0M1N2P3Q4R5S6T"),
+        runtime={"tool": "ComfyUI 0.4.1", "seed": 424243},
+    ), "image-64.jpg", "jpeg")
+
+    FIXTURES["14-image-webp-chunk.json"] = (base(
+        "image-64.ext.webp", "image/webp", "2026-10-20T08:05:00Z", "created", flux,
+        p_escrow("14", "01J9ZKCJ9K0M1N2P3Q4R5S6T7V"),
+        runtime={"tool": "ComfyUI 0.4.1", "seed": 424244},
+    ), "image-64.webp", "webp")
 
 
 def invalid_fixtures(valid: dict) -> dict:
@@ -1128,12 +1267,48 @@ def build_examples(valid: dict, write: bool) -> list[str]:
     lines = hexdump(seg, itxt[0]).split("\n")
     dump_txt += "\n".join(lines[:8] + ["..."] + lines[-2:]) + "\n"
     dump_txt += "\nartifact.id (PNG without the chunk): %s\n" % urn(png_strip(emb))
+    m13, m14 = valid["13-image-jpeg-jumbf.json"], valid["14-image-webp-chunk.json"]
+    jpg = jpeg_embed(D["image-64.jpg"], jcs_bytes(m13))
+    if jpeg_strip(jpg) != D["image-64.jpg"] or urn(jpeg_strip(jpg)) != m13["artifact"]["id"]:
+        errs.append("jpeg-jumbf: strip(embed(x)) != x")
+    # multi-segment split: a 70 000-byte payload must round-trip too
+    if jpeg_strip(jpeg_embed(D["image-64.jpg"], b"{" + b" " * 70000 + b"}")) != D["image-64.jpg"]:
+        errs.append("jpeg-jumbf: multi-segment strip mismatch")
+    s, e, _ = next(t for t in jpeg_segments(jpg) if t[2] == 0xEB)
+    jdump = (
+        "# APP11 segment in examples/jpeg-jumbf/image-64.ailineage.jpg\n"
+        "# generated by fixtures/regen.py; first 4 lines and last 2 lines of the segment\n"
+        "# layout: FF EB | Le(2) | CI='JP' | En(2) | Z(4)=1 |\n"
+        "#         jumb: LBox(4) 'jumb' | jumd: LBox(4) 'jumd' UUID(16)=json toggles=03 'ailineage' 00 |\n"
+        "#         json: LBox(4) 'json' UTF-8 JCS manifest\n")
+    lines = hexdump(jpg[s:e], s).split("\n")
+    jdump += "\n".join(lines[:4] + ["..."] + lines[-2:]) + "\n"
+    jdump += "\nartifact.id (JPEG without the segment): %s\n" % urn(jpeg_strip(jpg))
+    wbp = webp_embed(D["image-64.webp"], jcs_bytes(m14))
+    if webp_strip(wbp) != D["image-64.ext.webp"] or urn(webp_strip(wbp)) != m14["artifact"]["id"]:
+        errs.append("webp-chunk: strip(embed(x)) != extend(x)")
+    wdump = (
+        "# RIFF chunks in examples/webp-chunk/image-64.ailineage.webp\n"
+        "# generated by fixtures/regen.py\n"
+        "# offset  fourcc  size (bytes, without header and pad)\n")
+    wdump += "riff    %s\n" % struct.unpack("<I", wbp[4:8])[0]
+    for cs, ce, c in riff_chunks(wbp):
+        wdump += "%06d  %s    %d\n" % (cs, c.decode(), struct.unpack("<I", wbp[cs + 4:cs + 8])[0])
+    vs, ve, _ = next(t for t in riff_chunks(wbp) if t[2] == b"VP8X")
+    wdump += "\nVP8X chunk:\n" + hexdump(wbp[vs:ve], vs) + "\n"
+    wdump += "\nartifact.id (WebP without the AILN chunk, RIFF size rewritten): %s\n" % \
+        urn(webp_strip(wbp))
     sidecar_go = b"// ailineage: " + urn(D["hello.go"]).encode() + b"\n" + D["hello.go"]
     if text_strip_header(sidecar_go) != D["hello.go"]:
         errs.append("sidecar: header strip mismatch")
     if write:
         (EXAMPLES / "png-itxt" / "image-64.ailineage.png").write_bytes(emb)
         (EXAMPLES / "png-itxt" / "hexdump.txt").write_text(dump_txt)
+        for d, f, b, t in (("jpeg-jumbf", "image-64.ailineage.jpg", jpg, jdump),
+                           ("webp-chunk", "image-64.ailineage.webp", wbp, wdump)):
+            (EXAMPLES / d).mkdir(exist_ok=True)
+            (EXAMPLES / d / f).write_bytes(b)
+            (EXAMPLES / d / ("hexdump.txt" if d == "jpeg-jumbf" else "chunks.txt")).write_text(t)
         (EXAMPLES / "sidecar" / "hello.go").write_bytes(sidecar_go)
         (EXAMPLES / "sidecar" / "hello.go.lineage.json").write_text(
             dump(valid["03-code-created-claude-code-sidecar.json"]))
@@ -1142,6 +1317,10 @@ def build_examples(valid: dict, write: bool) -> list[str]:
     else:
         for rel, b in (("png-itxt/image-64.ailineage.png", emb),
                        ("png-itxt/hexdump.txt", dump_txt.encode()),
+                       ("jpeg-jumbf/image-64.ailineage.jpg", jpg),
+                       ("jpeg-jumbf/hexdump.txt", jdump.encode()),
+                       ("webp-chunk/image-64.ailineage.webp", wbp),
+                       ("webp-chunk/chunks.txt", wdump.encode()),
                        ("sidecar/hello.go", sidecar_go)):
             if (EXAMPLES / rel).read_bytes() != b:
                 errs.append("examples/%s is stale; run make fixtures-regen" % rel)
@@ -1223,7 +1402,8 @@ def cmd_regen(_args) -> int:
 
 def data_for(name: str, container: str) -> bytes:
     b = (DATA / name).read_bytes()
-    return png_strip(b) if container == "png" else b
+    return {"png": png_strip, "jpeg": jpeg_strip,
+            "webp": lambda x: webp_strip(webp_extend(x))}.get(container, lambda x: x)(b)
 
 
 def cmd_check(_args) -> int:

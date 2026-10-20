@@ -9,10 +9,14 @@ All notable changes to the specification are recorded here. The format follows [
 - ADR-0007: digest format `<alg>:<hex>` with a digest algorithm registry (only `sha256` in 0.1); REQ-0230 to REQ-0233; digest schemas restructured as one `anyOf` branch per algorithm. No fixture changes.
 - ADR-0008: mandatory salted prompt commitment. New canonicalization methods `utf8-nfc-trim-salted-v1` and `multimodal-salted-v1`, required for `storage` = `escrow` or `none`; REQ-0052, REQ-0308 to REQ-0311; CANONICALIZATION.md §5 with salted test vectors; THREAT_MODEL T13.
 
+- ADR-0009: JPEG embedding as a JUMBF box labelled `ailineage` in APP11 segments (REQ-0215 to REQ-0219, replacing the APP1 XMP rule), WebP embedding as a top-level `AILN` chunk in the extended format (REQ-0225 to REQ-0228), MP4 as a trailing top-level `uuid` box (informative until M2).
+- Valid fixtures 13 (JPEG) and 14 (WebP); examples `examples/jpeg-jumbf/` and `examples/webp-chunk/`; sample data `fixtures/data/image-64.jpg` and `image-64.webp`.
+
 ### Changed
 
 - Valid fixtures 01–09, 11 and 12 re-signed with salted commitments and new RFC 3161 tokens. TEST ONLY salts and openings published in `fixtures/data/`; `make validate` verifies every opening.
 - Invalid fixtures `escrow-unsalted`, `none-unsalted` and `public-salted` added.
+- SPEC.md §5.4 (sidecar) and §5.5 (digest format) renumbered to §5.5 and §5.6.
 - REQ-0041, REQ-0049, REQ-0303, REQ-0307 and REQ-0804 updated for salted commitments; CANONICALIZATION.md sections renumbered.
 
 ## [0.1.0-draft] — 2026-10-19

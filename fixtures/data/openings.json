@@ -109,5 +109,21 @@
       "text": "Summarise the 2027 municipal budget proposal in two sentences.",
       "salt": "ykXSEowS1n4YrFUBe1bcpEhca5B_NPs3xWCLiUiv6jU"
     }
+  ],
+  "13-image-jpeg-jumbf.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "A watercolor fox sleeping under a birch tree, JPEG output for the web gallery",
+      "salt": "eXq1ZOayv1qyeO3o0OmyndPlnPlrcZmT6G_2QogcQqg"
+    }
+  ],
+  "14-image-webp-chunk.json": [
+    {
+      "field": "prompt.hash",
+      "canonicalization": "utf8-nfc-trim-salted-v1",
+      "text": "A watercolor fox sleeping under a birch tree, lossless WebP sticker",
+      "salt": "9pmHJbR48m6xC0xn_savBzb5Ho5QMVusL74wdEGadmc"
+    }
   ]
 }

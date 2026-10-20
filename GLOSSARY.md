@@ -17,6 +17,7 @@ Informative definitions for terms used in [SPEC.md](SPEC.md).
 - **Escrow** — encrypted storage of the prompt plaintext by a custodian, referenced by `escrow_ref`.
 - **Hashable bytes** — the artifact bytes with any embedded AILineage manifest removed, per container (SPEC.md §5).
 - **JCS** — JSON Canonicalization Scheme, RFC 8785.
+- **JUMBF** — JPEG Universal Metadata Box Format (ISO/IEC 19566-5), the box container AILineage and C2PA use inside JPEG APP11 segments (SPEC §5.3).
 - **Leaf** — a parent with no manifest; reported `UNPROVENANCED` in a chain report without breaking the child.
 - **Lineage chain** — the DAG obtained by following `parents[]` across manifests.
 - **Manifest** — the signed JSON object defined by SPEC.md §4 (`application/vnd.ailineage+json`).
