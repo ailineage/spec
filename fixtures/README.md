@@ -7,6 +7,7 @@ Conformance fixtures for `ailineage/0.1`. SDKs SHOULD run all of them as golden 
 - `data/` — the sample artifacts the valid fixtures describe. Every `artifact.id`, `parents[].id`, `context_refs[]` and digest is computed from these bytes. `data/salts.json` and `data/openings.json` hold the **TEST ONLY** salts and openings (plaintext + salt) of every salted prompt commitment; in production they would exist only in escrow or with the principal.
 - `keys/` — **TEST ONLY** signing keys and the freetsa.org TSA certificates ([keys/README.md](keys/README.md)).
 - `vectors/` — canonicalization test vectors (also rendered in CANONICALIZATION.md).
+- `index.json` — machine-readable test plan for SDK golden tests: each case names a manifest, the artifact file (or `null` for structure-only cases), how the manifest is located (`out-of-band`, `embedded`, `sidecar`) and the expected state and reason, plus the TEST ONLY trust policy (signing keys, TSA root). Generated and checked by `regen.py`.
 - `regen.py` — generator and checker, the only code in this repository.
 
 ## How the fixtures are made
